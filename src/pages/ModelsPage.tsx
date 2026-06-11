@@ -2,15 +2,12 @@ import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   BoxIcon,
-  CableIcon,
   CircleDollarSignIcon,
-  KeyRoundIcon,
-  MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
 } from "lucide-react";
-import { listChannels, type Channel } from "@/lib/api/channels";
+import { listModels } from "@/lib/api/models";
 import type { StatusFilter } from "@/lib/api/types";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Button } from "@/components/ui/button";
@@ -22,16 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
-import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
-import { CostPricesDialog } from "@/components/channels/CostPricesDialog";
-import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
 import {
   Table,
   TableBody,
@@ -53,22 +40,24 @@ import {
 } from "@/components/ui/empty";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
+import { ModelFormDialog } from "@/components/models/ModelFormDialog";
+import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
+import { PricesDialog } from "@/components/models/PricesDialog";
 
 const COLS = 6;
 const PAGE_SIZE = 20;
 
-export function ChannelsPage() {
+export function ModelsPage() {
   const [tab, setTab] = useState<StatusFilter>("enabled");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
 
   const search = useDebouncedValue(searchInput.trim(), 300);
 
   const query = useQuery({
-    queryKey: ["channels", { status: tab, q: search, page }],
+    queryKey: ["models", { status: tab, q: search, page }],
     queryFn: () =>
-      listChannels({ page, pageSize: PAGE_SIZE, status: tab, q: search }),
+      listModels({ page, pageSize: PAGE_SIZE, status: tab, q: search }),
     placeholderData: keepPreviousData,
   });
 
@@ -94,14 +83,15 @@ export function ChannelsPage() {
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>渠道</CardTitle>
-        <CardDescription>provider 下的具体上游线路</CardDescription>
+        <CardTitle>模型</CardTitle>
+        <CardDescription>对外暴露与计费的模型目录</CardDescription>
         <CardAction>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <PlusIcon data-icon="inline-start" />
-            新建
-          </Button>
-          <ChannelFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+          <ModelFormDialog>
+            <Button size="sm">
+              <PlusIcon data-icon="inline-start" />
+              新建
+            </Button>
+          </ModelFormDialog>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -116,7 +106,7 @@ export function ChannelsPage() {
           <div className="relative w-full max-w-xs">
             <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
             <Input
-              placeholder="搜索名称 / 地址"
+              placeholder="搜索 ID / 名称 / 归属方"
               value={searchInput}
               onChange={(e) => changeSearch(e.target.value)}
               className="pl-8"
@@ -135,10 +125,10 @@ export function ChannelsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">ID</TableHead>
-                  <TableHead>名称</TableHead>
-                  <TableHead>服务商</TableHead>
-                  <TableHead>协议</TableHead>
-                  <TableHead className="w-20 text-right">优先级</TableHead>
+                  <TableHead>对外模型 ID</TableHead>
+                  <TableHead>展示名</TableHead>
+                  <TableHead>来源</TableHead>
+                  <TableHead>状态</TableHead>
                   <TableHead className="w-16 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -150,16 +140,16 @@ export function ChannelsPage() {
                         <Skeleton className="h-4 w-8" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-4 w-40" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-40" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-5 w-16 rounded-full" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="ml-auto h-4 w-8" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="ml-auto size-8" />
@@ -169,11 +159,47 @@ export function ChannelsPage() {
                 ) : items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={COLS} className="h-48">
-                      <ChannelsEmpty search={search} tab={tab} />
+                      <ModelsEmpty search={search} tab={tab} />
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((c) => <ChannelRow key={c.id} channel={c} />)
+                  items.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {m.id}
+                      </TableCell>
+                      <TableCell className="font-medium">{m.model_id}</TableCell>
+                      <TableCell>{m.display_name}</TableCell>
+                      <TableCell>
+                        <SourceBadge source={m.source} />
+                      </TableCell>
+                      <TableCell>
+                        <ModelStatusToggle model={m} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <PricesDialog model={m}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="售价"
+                            >
+                              <CircleDollarSignIcon />
+                            </Button>
+                          </PricesDialog>
+                          <ModelFormDialog model={m}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="编辑"
+                            >
+                              <PencilIcon />
+                            </Button>
+                          </ModelFormDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
@@ -191,89 +217,22 @@ export function ChannelsPage() {
   );
 }
 
-function ChannelRow({ channel: c }: { channel: Channel }) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [rotateOpen, setRotateOpen] = useState(false);
-  const [modelsOpen, setModelsOpen] = useState(false);
-  const [pricesOpen, setPricesOpen] = useState(false);
-
-  return (
-    <TableRow>
-      <TableCell className="text-muted-foreground tabular-nums">
-        {c.id}
-      </TableCell>
-      <TableCell>
-        <div className="font-medium">{c.name}</div>
-        <div className="text-muted-foreground text-xs">{c.base_url}</div>
-      </TableCell>
-      <TableCell>{c.provider_name || `#${c.provider_id}`}</TableCell>
-      <TableCell>
-        <Badge variant="outline">{c.protocol}</Badge>
-      </TableCell>
-      <TableCell className="text-right tabular-nums">{c.priority}</TableCell>
-      <TableCell className="text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="操作">
-              <MoreHorizontalIcon />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setModelsOpen(true)}>
-              <BoxIcon />
-              管理模型
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setPricesOpen(true)}>
-              <CircleDollarSignIcon />
-              成本价
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
-              <PencilIcon />
-              编辑
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setRotateOpen(true)}>
-              <KeyRoundIcon />
-              轮换凭据
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <ChannelFormDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          channel={c}
-        />
-        <RotateCredentialDialog
-          open={rotateOpen}
-          onOpenChange={setRotateOpen}
-          channel={c}
-        />
-        <ChannelModelsDialog
-          open={modelsOpen}
-          onOpenChange={setModelsOpen}
-          channel={c}
-        />
-        <CostPricesDialog
-          open={pricesOpen}
-          onOpenChange={setPricesOpen}
-          channel={c}
-        />
-      </TableCell>
-    </TableRow>
-  );
+// 来源徽标：manual=手建，seed_models_dev=同步种子（元数据会被同步覆盖），import=导入。
+function SourceBadge({ source }: { source: string }) {
+  if (source === "manual") {
+    return <Badge variant="secondary">手建</Badge>;
+  }
+  if (source === "seed_models_dev") {
+    return <Badge variant="outline">同步</Badge>;
+  }
+  return <Badge variant="outline">{source}</Badge>;
 }
 
-function ChannelsEmpty({
-  search,
-  tab,
-}: {
-  search: string;
-  tab: StatusFilter;
-}) {
+function ModelsEmpty({ search, tab }: { search: string; tab: StatusFilter }) {
   if (search) {
     return (
       <p className="text-muted-foreground text-center text-sm">
-        没有匹配「{search}」的渠道
+        没有匹配「{search}」的模型
       </p>
     );
   }
@@ -281,11 +240,11 @@ function ChannelsEmpty({
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <CableIcon />
+          <BoxIcon />
         </EmptyMedia>
-        <EmptyTitle>暂无渠道</EmptyTitle>
+        <EmptyTitle>暂无模型</EmptyTitle>
         <EmptyDescription>
-          {tab === "enabled" ? "没有启用中的渠道。" : "没有已停用的渠道。"}
+          {tab === "enabled" ? "没有启用中的模型。" : "没有已停用的模型。"}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

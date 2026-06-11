@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
+  BoxIcon,
   CableIcon,
   LayoutDashboardIcon,
   LogOutIcon,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { title: "概览", to: "/", icon: LayoutDashboardIcon },
   { title: "服务商", to: "/providers", icon: ServerIcon },
   { title: "渠道", to: "/channels", icon: CableIcon },
+  { title: "模型", to: "/models", icon: BoxIcon },
 ];
 
 function isItemActive(to: string, pathname: string): boolean {

@@ -3,6 +3,7 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ProvidersPage } from "@/pages/ProvidersPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
+import { ModelsPage } from "@/pages/ModelsPage";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -15,6 +16,7 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="channels" element={<ChannelsPage />} />
+          <Route path="models" element={<ModelsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
