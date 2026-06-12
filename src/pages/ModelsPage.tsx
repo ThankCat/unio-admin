@@ -6,6 +6,7 @@ import {
   PencilIcon,
   PlusIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { listModels } from "@/lib/api/models";
 import type { StatusFilter } from "@/lib/api/types";
@@ -43,6 +44,7 @@ import { TablePagination } from "@/components/common/TablePagination";
 import { ModelFormDialog } from "@/components/models/ModelFormDialog";
 import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
 import { PricesDialog } from "@/components/models/PricesDialog";
+import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDialog";
 
 const COLS = 6;
 const PAGE_SIZE = 20;
@@ -187,6 +189,15 @@ export function ModelsPage() {
                               <CircleDollarSignIcon />
                             </Button>
                           </PricesDialog>
+                          <ModelCapabilitiesDialog model={m}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="能力"
+                            >
+                              <SlidersHorizontalIcon />
+                            </Button>
+                          </ModelCapabilitiesDialog>
                           <ModelFormDialog model={m}>
                             <Button
                               variant="ghost"

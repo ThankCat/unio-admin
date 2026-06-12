@@ -4,6 +4,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { ProvidersPage } from "@/pages/ProvidersPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { ModelsPage } from "@/pages/ModelsPage";
+import { CapabilityPage } from "@/pages/CapabilityPage";
 import { RequestsPage } from "@/pages/RequestsPage";
 import { UsagePage } from "@/pages/UsagePage";
 import { LedgerPage } from "@/pages/LedgerPage";
@@ -23,6 +24,7 @@ function App() {
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="channels" element={<ChannelsPage />} />
           <Route path="models" element={<ModelsPage />} />
+          <Route path="capability" element={<CapabilityPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="usage" element={<UsagePage />} />
           <Route path="ledger" element={<LedgerPage />} />

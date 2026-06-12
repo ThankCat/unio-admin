@@ -9,6 +9,7 @@ import {
   PencilIcon,
   PlusIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { listChannels, type Channel } from "@/lib/api/channels";
 import type { StatusFilter } from "@/lib/api/types";
@@ -31,6 +32,7 @@ import {
 import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
 import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
 import { CostPricesDialog } from "@/components/channels/CostPricesDialog";
+import { ChannelCapabilityOverridesDialog } from "@/components/channels/ChannelCapabilityOverridesDialog";
 import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
 import {
   Table,
@@ -196,6 +198,7 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
   const [rotateOpen, setRotateOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [pricesOpen, setPricesOpen] = useState(false);
+  const [capsOpen, setCapsOpen] = useState(false);
 
   return (
     <TableRow>
@@ -227,6 +230,10 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
               <CircleDollarSignIcon />
               成本价
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setCapsOpen(true)}>
+              <SlidersHorizontalIcon />
+              能力收紧
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setEditOpen(true)}>
               <PencilIcon />
               编辑
@@ -256,6 +263,11 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
         <CostPricesDialog
           open={pricesOpen}
           onOpenChange={setPricesOpen}
+          channel={c}
+        />
+        <ChannelCapabilityOverridesDialog
+          open={capsOpen}
+          onOpenChange={setCapsOpen}
           channel={c}
         />
       </TableCell>

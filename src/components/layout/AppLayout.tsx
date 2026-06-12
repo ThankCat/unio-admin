@@ -8,6 +8,7 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   ServerIcon,
+  SlidersHorizontalIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react";
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
       { title: "服务商", to: "/providers", icon: ServerIcon },
       { title: "渠道", to: "/channels", icon: CableIcon },
       { title: "模型", to: "/models", icon: BoxIcon },
+      { title: "能力", to: "/capability", icon: SlidersHorizontalIcon },
     ],
   },
   {
