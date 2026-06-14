@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   createChannel,
   updateChannel,
+  listAdapterKeys,
   type Channel,
 } from "@/lib/api/channels";
 import { listAllProviders } from "@/lib/api/providers";
@@ -81,9 +82,11 @@ function ChannelForm({
     channel ? String(channel.provider_id) : "",
   );
   const [name, setName] = useState(channel?.name ?? "");
-  const [protocol, setProtocol] = useState(channel?.protocol ?? "openai");
+  const initialProtocol = channel?.protocol ?? "openai";
+  const [protocol, setProtocol] = useState(initialProtocol);
+  // adapter_key 留空时后端默认取协议同名的忠实透传 adapter，故初值跟随协议默认。
   const [adapterKey, setAdapterKey] = useState(
-    channel?.adapter_key ?? "deepseek",
+    channel?.adapter_key ?? initialProtocol,
   );
   const [baseUrl, setBaseUrl] = useState(channel?.base_url ?? "");
   const [credential, setCredential] = useState("");
@@ -100,6 +103,28 @@ function ChannelForm({
     queryFn: listAllProviders,
     enabled: !isEdit,
   });
+
+  // 可选 adapter_key 由后端按已注册能力枚举；仅创建时需要（编辑不可改 adapter）。
+  const adapterKeysQuery = useQuery({
+    queryKey: ["channels", "adapter-keys"],
+    queryFn: listAdapterKeys,
+    enabled: !isEdit,
+  });
+
+  // 按当前协议过滤出可选 adapter_key（协议变更时联动）。
+  const adapterOptions = (adapterKeysQuery.data ?? []).filter(
+    (o) => o.protocol === protocol,
+  );
+
+  // 协议切换时把 adapter_key 重置为新协议的默认项（忠实透传），避免残留跨协议的非法值。
+  function handleProtocolChange(next: string) {
+    setProtocol(next);
+    const opts = (adapterKeysQuery.data ?? []).filter(
+      (o) => o.protocol === next,
+    );
+    const fallback = opts.find((o) => o.is_default) ?? opts[0];
+    setAdapterKey(fallback ? fallback.adapter_key : next);
+  }
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -245,7 +270,7 @@ function ChannelForm({
               {isEdit ? (
                 <Input id="protocol" value={channel.protocol} disabled />
               ) : (
-                <Select value={protocol} onValueChange={setProtocol}>
+                <Select value={protocol} onValueChange={handleProtocolChange}>
                   <SelectTrigger id="protocol" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -259,14 +284,31 @@ function ChannelForm({
 
             <Field data-invalid={!!errors.adapter_key}>
               <FieldLabel htmlFor="adapter_key">adapter_key</FieldLabel>
-              <Input
-                id="adapter_key"
-                value={adapterKey}
-                onChange={(e) => setAdapterKey(e.target.value)}
-                placeholder="deepseek"
-                aria-invalid={!!errors.adapter_key}
-                disabled={isEdit}
-              />
+              {isEdit ? (
+                <Input id="adapter_key" value={channel.adapter_key} disabled />
+              ) : (
+                <Select value={adapterKey} onValueChange={setAdapterKey}>
+                  <SelectTrigger
+                    id="adapter_key"
+                    className="w-full"
+                    aria-invalid={!!errors.adapter_key}
+                  >
+                    <SelectValue
+                      placeholder={
+                        adapterKeysQuery.isPending ? "加载中…" : "选择 adapter"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adapterOptions.map((o) => (
+                      <SelectItem key={o.adapter_key} value={o.adapter_key}>
+                        {o.adapter_key}
+                        {o.is_default ? "（默认 · 忠实透传）" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {isEdit ? (
                 <FieldDescription>创建后不可修改</FieldDescription>
               ) : (

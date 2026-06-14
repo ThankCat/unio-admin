@@ -71,7 +71,7 @@ export interface DashboardOverview {
   channels: ChannelStats;
 }
 
-export type TimeseriesMetric = "requests" | "tokens" | "spend";
+export type TimeseriesMetric = "requests" | "tokens" | "spend" | "cost";
 export type TimeseriesInterval = "hour" | "day";
 
 export interface RequestPoint {

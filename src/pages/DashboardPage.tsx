@@ -72,6 +72,7 @@ const METRICS: { key: TimeseriesMetric; label: string }[] = [
   { key: "requests", label: "请求" },
   { key: "tokens", label: "Token" },
   { key: "spend", label: "收入" },
+  { key: "cost", label: "成本" },
 ];
 
 const CHART_COLORS = [
@@ -517,7 +518,7 @@ function TimeseriesChart({
     );
   }
 
-  // spend：按币种 pivot，多线渲染。
+  // spend / cost：同形（bucket+currency+amount），按币种 pivot，多线渲染。
   const spendPoints = points as SpendPoint[];
   const buckets = new Map<string, Record<string, number | string>>();
   const currencies: string[] = [];

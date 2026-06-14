@@ -61,6 +61,22 @@ export async function createChannel(
   return res.data.data;
 }
 
+// 与后端 adapterKeyOptionDTO 对齐：某协议族下一个可选 adapter_key 的枚举项。
+// is_default=true 表示与协议同名的忠实透传 adapter（创建时留空即默认取它）。
+export interface AdapterKeyOption {
+  protocol: string;
+  adapter_key: string;
+  is_default: boolean;
+}
+
+// 拉取当前进程注册的全部可选 adapter_key，供新建渠道时按协议下拉而非手填。
+export async function listAdapterKeys(): Promise<AdapterKeyOption[]> {
+  const res = await api.get<{ data: AdapterKeyOption[] }>(
+    "/admin/v1/channels/adapter-keys",
+  );
+  return res.data.data;
+}
+
 // 编辑只能改这几项：protocol、adapter_key、凭据都不在此修改（凭据走轮换接口）。
 export interface UpdateChannelInput {
   id: number;
