@@ -5,6 +5,7 @@ import { ProvidersPage } from "@/pages/ProvidersPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { ModelCatalogPage } from "@/pages/ModelCatalogPage";
+import { RoutesPage } from "@/pages/RoutesPage";
 import { CapabilityPage } from "@/pages/CapabilityPage";
 import { RequestsPage } from "@/pages/RequestsPage";
 import { UsagePage } from "@/pages/UsagePage";
@@ -27,6 +28,7 @@ function App() {
           <Route path="channels" element={<ChannelsPage />} />
           <Route path="models" element={<ModelsPage />} />
           <Route path="model-catalog" element={<ModelCatalogPage />} />
+          <Route path="routes" element={<RoutesPage />} />
           <Route path="capability" element={<CapabilityPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="usage" element={<UsagePage />} />

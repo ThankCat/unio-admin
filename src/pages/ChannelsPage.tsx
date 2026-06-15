@@ -34,7 +34,7 @@ import {
 import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
 import { DeleteChannelDialog } from "@/components/channels/DeleteChannelDialog";
 import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
-import { CostPricesDialog } from "@/components/channels/CostPricesDialog";
+import { ChannelPricesDialog } from "@/components/channels/ChannelPricesDialog";
 import { ChannelCapabilityOverridesDialog } from "@/components/channels/ChannelCapabilityOverridesDialog";
 import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
 import {
@@ -232,7 +232,7 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPricesOpen(true)}>
               <CircleDollarSignIcon />
-              成本价
+              定价（售价/成本）
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setCapsOpen(true)}>
               <SlidersHorizontalIcon />
@@ -272,7 +272,7 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
           onOpenChange={setModelsOpen}
           channel={c}
         />
-        <CostPricesDialog
+        <ChannelPricesDialog
           open={pricesOpen}
           onOpenChange={setPricesOpen}
           channel={c}

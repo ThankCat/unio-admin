@@ -12,6 +12,7 @@ export interface ApiKey {
   status: string;
   spend_limit: string | null;
   spent_total: string;
+  route_id: number | null;
   last_used_at: string | null;
   expires_at: string | null;
   disabled_at: string | null;
@@ -44,6 +45,8 @@ export interface CreateApiKeyInput {
   expiresAt?: string | null;
   // 费用上限（十进制字符串），不传/空串表示不限额。
   spendLimit?: string;
+  // 线路绑定（阶段 15）：线路 id，不传/null 表示不绑（回落项目默认/内置经济）。
+  routeId?: number | null;
 }
 
 export async function createApiKey(
@@ -55,22 +58,26 @@ export async function createApiKey(
       name: input.name,
       expires_at: input.expiresAt || undefined,
       spend_limit: input.spendLimit ?? undefined,
+      route_id: input.routeId ?? undefined,
     },
   );
   return res.data.data;
 }
 
-// 更新：disabled 启停；spend_limit 设上限（""=清除上限/改为不限额，省略=不变）。
+// 更新：disabled 启停；spend_limit 设上限（""=清除上限/改为不限额，省略=不变）；
+// route_id 绑线路（number=设、null=清除、省略=不变）。
 export interface UpdateApiKeyInput {
   id: number;
   disabled?: boolean;
   spendLimit?: string;
+  routeId?: number | null;
 }
 
 export async function updateApiKey(input: UpdateApiKeyInput): Promise<ApiKey> {
   const body: Record<string, unknown> = {};
   if (input.disabled !== undefined) body.disabled = input.disabled;
   if (input.spendLimit !== undefined) body.spend_limit = input.spendLimit;
+  if (input.routeId !== undefined) body.route_id = input.routeId;
   const res = await api.patch<{ data: ApiKey }>(
     `/admin/v1/api-keys/${input.id}`,
     body,

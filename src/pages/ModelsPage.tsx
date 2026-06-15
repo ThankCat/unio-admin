@@ -2,7 +2,6 @@ import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   BoxIcon,
-  CircleDollarSignIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
@@ -44,7 +43,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
 import { ModelFormDialog } from "@/components/models/ModelFormDialog";
 import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
-import { PricesDialog } from "@/components/models/PricesDialog";
 import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDialog";
 import { DeleteModelDialog } from "@/components/models/DeleteModelDialog";
 import { CatalogUpdateDialog } from "@/components/models/CatalogUpdateDialog";
@@ -204,15 +202,6 @@ export function ModelsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <PricesDialog model={m}>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="售价"
-                            >
-                              <CircleDollarSignIcon />
-                            </Button>
-                          </PricesDialog>
                           <ModelCapabilitiesDialog model={m}>
                             <Button
                               variant="ghost"

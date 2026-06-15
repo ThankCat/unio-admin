@@ -1,13 +1,21 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CopyIcon, TriangleAlertIcon } from "lucide-react";
 import {
   createApiKey,
   type CreatedApiKey,
 } from "@/lib/api/apiKeys";
+import { listRoutes } from "@/lib/api/routes";
 import { apiErrorMessage } from "@/lib/api/client";
 import { localToRFC3339 } from "@/lib/format";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -49,10 +57,18 @@ export function CreateApiKeyDialog({
   const [name, setName] = useState("");
   const [expiresLocal, setExpiresLocal] = useState("");
   const [spendLimit, setSpendLimit] = useState("");
+  const [routeId, setRouteId] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
 
   const queryClient = useQueryClient();
+
+  const routesQuery = useQuery({
+    queryKey: ["routes"],
+    queryFn: listRoutes,
+    enabled: open,
+  });
+  const routes = (routesQuery.data ?? []).filter((r) => r.status === "enabled");
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -61,6 +77,7 @@ export function CreateApiKeyDialog({
         name: name.trim(),
         expiresAt: expiresLocal ? localToRFC3339(expiresLocal) : undefined,
         spendLimit: spendLimit.trim() || undefined,
+        routeId: routeId ? Number(routeId) : undefined,
       }),
     onSuccess: (key) => {
       queryClient.invalidateQueries({ queryKey: ["api-keys", projectId] });
@@ -77,6 +94,7 @@ export function CreateApiKeyDialog({
       setName("");
       setExpiresLocal("");
       setSpendLimit("");
+      setRouteId("");
       setErrors({});
       setCreated(null);
       mutation.reset();
@@ -197,6 +215,29 @@ export function CreateApiKeyDialog({
                     onChange={(e) => setExpiresLocal(e.target.value)}
                   />
                   <FieldDescription>留空表示永不过期</FieldDescription>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="key_route">线路</FieldLabel>
+                  <Select
+                    value={routeId || "none"}
+                    onValueChange={(v) => setRouteId(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger id="key_route" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">默认（项目默认 / 内置经济）</SelectItem>
+                      {routes.map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    决定该 Key 的选路策略与候选池；不选则回落项目默认 / 内置经济
+                  </FieldDescription>
                 </Field>
               </FieldGroup>
 
