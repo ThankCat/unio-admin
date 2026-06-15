@@ -10,6 +10,7 @@ import {
   PlusIcon,
   SearchIcon,
   SlidersHorizontalIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { listChannels, type Channel } from "@/lib/api/channels";
 import type { StatusFilter } from "@/lib/api/types";
@@ -27,9 +28,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
+import { DeleteChannelDialog } from "@/components/channels/DeleteChannelDialog";
 import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
 import { CostPricesDialog } from "@/components/channels/CostPricesDialog";
 import { ChannelCapabilityOverridesDialog } from "@/components/channels/ChannelCapabilityOverridesDialog";
@@ -199,6 +202,7 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
   const [modelsOpen, setModelsOpen] = useState(false);
   const [pricesOpen, setPricesOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <TableRow>
@@ -242,6 +246,14 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
               <KeyRoundIcon />
               轮换凭据
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setDeleteOpen(true)}
+            >
+              <Trash2Icon />
+              删除
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -268,6 +280,11 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
         <ChannelCapabilityOverridesDialog
           open={capsOpen}
           onOpenChange={setCapsOpen}
+          channel={c}
+        />
+        <DeleteChannelDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
           channel={c}
         />
       </TableCell>

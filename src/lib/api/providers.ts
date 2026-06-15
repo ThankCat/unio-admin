@@ -67,3 +67,9 @@ export async function updateProvider({
   );
   return res.data.data;
 }
+
+// 删除服务商：录错的脏数据可真删（slug 随之释放，可重录同名）；
+// 名下仍有渠道或已被请求/账务历史引用时，后端返回 409，提示先删渠道或改用停用。
+export async function deleteProvider(id: number): Promise<void> {
+  await api.delete(`/admin/v1/providers/${id}`);
+}

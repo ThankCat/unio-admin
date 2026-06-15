@@ -2,7 +2,7 @@ import { api } from "@/lib/api/client";
 
 // 与后端能力管理 DTO 对齐（M5）。limits 原样透传 JSON（无则为 null）。
 // 能力 key 是稳定契约（docs/protocol/CAPABILITY_KEYS.md）；support_level：full/limited/unsupported。
-// source：models_dev（同步种子）/ manual（手工覆盖）/ adapter_seed（adapter 画像物化）。
+// 阶段 14 起能力不再带 source。
 
 export type SupportLevel = "full" | "limited" | "unsupported";
 
@@ -11,7 +11,6 @@ export interface ModelCapability {
   capability_key: string;
   support_level: SupportLevel;
   limits: unknown | null;
-  source: string;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -134,12 +133,9 @@ export interface SyncJob {
 export interface SyncResult {
   dry_run: boolean;
   feed_models: number;
-  inserted: number;
-  updated: number;
-  skipped: number;
+  upserted: number;
   removed: number;
-  capabilities_seeded: number;
-  manual_conflicts: string[];
+  capability_hints: number;
   removed_canonical_ids: string[];
   fingerprint: string;
 }

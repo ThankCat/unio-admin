@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { PencilIcon, PlusIcon, SearchIcon, ServerIcon } from "lucide-react";
+import {
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  ServerIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { listProviders } from "@/lib/api/providers";
 import type { StatusFilter } from "@/lib/api/types";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -35,6 +41,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
 import { ProviderFormDialog } from "@/components/providers/ProviderFormDialog";
 import { ProviderStatusToggle } from "@/components/providers/ProviderStatusToggle";
+import { DeleteProviderDialog } from "@/components/providers/DeleteProviderDialog";
 
 const COLS = 5;
 const PAGE_SIZE = 20;
@@ -120,7 +127,7 @@ export function ProvidersPage() {
                   <TableHead>标识</TableHead>
                   <TableHead>名称</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead className="w-16 text-right">操作</TableHead>
+                  <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -162,15 +169,27 @@ export function ProvidersPage() {
                         <ProviderStatusToggle provider={p} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <ProviderFormDialog provider={p}>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="编辑"
-                          >
-                            <PencilIcon />
-                          </Button>
-                        </ProviderFormDialog>
+                        <div className="flex justify-end gap-1">
+                          <ProviderFormDialog provider={p}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="编辑"
+                            >
+                              <PencilIcon />
+                            </Button>
+                          </ProviderFormDialog>
+                          <DeleteProviderDialog provider={p}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="删除"
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2Icon />
+                            </Button>
+                          </DeleteProviderDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

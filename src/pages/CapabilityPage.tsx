@@ -188,15 +188,13 @@ function SyncResultCard({ result }: { result: SyncResult }) {
       <AlertDescription>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
           <Stat label="feed 模型" value={result.feed_models} />
-          <Stat label="新增" value={result.inserted} />
-          <Stat label="更新" value={result.updated} />
-          <Stat label="跳过" value={result.skipped} />
+          <Stat label="写入目录" value={result.upserted} />
           <Stat label="下架" value={result.removed} />
-          <Stat label="能力种子" value={result.capabilities_seeded} />
+          <Stat label="能力提示" value={result.capability_hints} />
         </div>
-        {result.manual_conflicts.length > 0 && (
+        {result.removed_canonical_ids.length > 0 && (
           <p className="text-muted-foreground mt-2 text-xs">
-            手工冲突（保留手工值，跳过）：{result.manual_conflicts.join(", ")}
+            上游下架：{result.removed_canonical_ids.join(", ")}
           </p>
         )}
         {result.fingerprint && (

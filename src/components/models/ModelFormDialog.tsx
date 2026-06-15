@@ -56,24 +56,33 @@ export function ModelFormDialog({
   const [displayName, setDisplayName] = useState("");
   const [ownedBy, setOwnedBy] = useState("");
   const [status, setStatus] = useState("enabled");
-  const [lab, setLab] = useState("");
   const [maxOutputTokens, setMaxOutputTokens] = useState("");
+  const [contextWindow, setContextWindow] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+  const [outputPrice, setOutputPrice] = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: () => {
-      const maxTokens =
-        maxOutputTokens.trim() === "" ? null : Number(maxOutputTokens);
+      const num = (s: string) => (s.trim() === "" ? null : Number(s));
+      const str = (s: string) => (s.trim() === "" ? null : s.trim());
+      const meta = {
+        max_output_tokens: num(maxOutputTokens),
+        context_window_tokens: num(contextWindow),
+        input_price_usd_per_million_tokens: str(inputPrice),
+        output_price_usd_per_million_tokens: str(outputPrice),
+        release_date: str(releaseDate),
+      };
       if (model) {
         return updateModel({
           id: model.id,
           display_name: displayName.trim(),
           owned_by: ownedBy.trim(),
           status,
-          lab: lab.trim(),
-          max_output_tokens: maxTokens,
+          ...meta,
         });
       }
       return createModel({
@@ -81,8 +90,7 @@ export function ModelFormDialog({
         display_name: displayName.trim(),
         owned_by: ownedBy.trim(),
         status,
-        lab: lab.trim(),
-        max_output_tokens: maxTokens,
+        ...meta,
       });
     },
     onSuccess: (saved) => {
@@ -105,10 +113,17 @@ export function ModelFormDialog({
       setDisplayName(model?.display_name ?? "");
       setOwnedBy(model?.owned_by ?? "");
       setStatus(model?.status ?? "enabled");
-      setLab(model?.lab ?? "");
       setMaxOutputTokens(
         model?.max_output_tokens != null ? String(model.max_output_tokens) : "",
       );
+      setContextWindow(
+        model?.context_window_tokens != null
+          ? String(model.context_window_tokens)
+          : "",
+      );
+      setInputPrice(model?.input_price_usd_per_million_tokens ?? "");
+      setOutputPrice(model?.output_price_usd_per_million_tokens ?? "");
+      setReleaseDate(model?.release_date ?? "");
       setErrors({});
       mutation.reset();
     }
@@ -202,13 +217,16 @@ export function ModelFormDialog({
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="lab">厂商 / 实验室</FieldLabel>
-                <Input
-                  id="lab"
-                  value={lab}
-                  onChange={(e) => setLab(e.target.value)}
-                  placeholder="deepseek（可选）"
-                />
+                <FieldLabel htmlFor="status">状态</FieldLabel>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger id="status" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="enabled">启用</SelectItem>
+                    <SelectItem value="disabled">停用</SelectItem>
+                  </SelectContent>
+                </Select>
               </Field>
             </div>
 
@@ -228,18 +246,50 @@ export function ModelFormDialog({
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="status">状态</FieldLabel>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger id="status" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enabled">启用</SelectItem>
-                    <SelectItem value="disabled">停用</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FieldLabel htmlFor="context_window_tokens">上下文长度</FieldLabel>
+                <Input
+                  id="context_window_tokens"
+                  type="number"
+                  min={1}
+                  value={contextWindow}
+                  onChange={(e) => setContextWindow(e.target.value)}
+                  placeholder="可选（仅展示）"
+                />
               </Field>
             </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <Field>
+                <FieldLabel htmlFor="input_price">输入价格基线</FieldLabel>
+                <Input
+                  id="input_price"
+                  value={inputPrice}
+                  onChange={(e) => setInputPrice(e.target.value)}
+                  placeholder="USD/百万 token"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="output_price">输出价格基线</FieldLabel>
+                <Input
+                  id="output_price"
+                  value={outputPrice}
+                  onChange={(e) => setOutputPrice(e.target.value)}
+                  placeholder="USD/百万 token"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="release_date">发布日期</FieldLabel>
+                <Input
+                  id="release_date"
+                  type="date"
+                  value={releaseDate}
+                  onChange={(e) => setReleaseDate(e.target.value)}
+                />
+              </Field>
+            </div>
+            <FieldDescription>
+              价格基线与上下文长度仅作展示，不参与计费（计费以售价/成本价为准）。
+            </FieldDescription>
           </FieldGroup>
 
           <DialogFooter className="mt-6">

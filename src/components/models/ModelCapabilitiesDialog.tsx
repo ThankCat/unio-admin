@@ -43,10 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  SupportLevelBadge,
-  CapabilitySourceBadge,
-} from "@/components/capability/shared";
+import { SupportLevelBadge } from "@/components/capability/shared";
 import { formatLimits, parseLimitsInput } from "@/lib/capability/limits";
 
 // children-trigger 弹窗：与 PricesDialog 一致，自管 open 状态，便于嵌进操作列。
@@ -88,7 +85,7 @@ function CapabilityManager({ model }: { model: Model }) {
         <DialogHeader>
           <DialogTitle>{editing === "new" ? "新增能力" : "编辑能力"}</DialogTitle>
           <DialogDescription>
-            为「{model.display_name}」手工声明能力（source=manual）；models.dev 同步只在新模型首次落库时写粗能力，手工覆盖不会被同步回滚。
+            为「{model.display_name}」声明能力（Layer 2）。从目录采纳的模型会带入能力提示，此处可继续增删改。
           </DialogDescription>
         </DialogHeader>
         <CapabilityForm
@@ -183,7 +180,6 @@ function CapabilityRow({
             {cap.capability_key}
           </span>
           <SupportLevelBadge level={cap.support_level} />
-          <CapabilitySourceBadge source={cap.source} />
         </div>
         {cap.limits != null && (
           <div className="text-muted-foreground mt-1 font-mono text-xs">

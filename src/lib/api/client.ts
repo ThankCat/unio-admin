@@ -49,3 +49,9 @@ export function apiErrorMessage(
   }
   return err instanceof Error ? err.message : fallback;
 }
+
+// 取 axios 错误里的 HTTP 状态码（非 axios 错误返回 undefined），便于按状态分流文案，
+// 例如删除被拒（409）时给出「请改用停用」的中文提示，而非直接透出后端英文 message。
+export function apiErrorStatus(err: unknown): number | undefined {
+  return axios.isAxiosError(err) ? err.response?.status : undefined;
+}

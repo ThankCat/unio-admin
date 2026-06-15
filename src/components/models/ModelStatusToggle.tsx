@@ -31,8 +31,14 @@ export function ModelStatusToggle({ model }: { model: Model }) {
             display_name: model.display_name,
             owned_by: model.owned_by,
             status: next ? "enabled" : "disabled",
-            lab: model.lab,
+            // 带上现有元数据，避免仅切状态时把这些快照清空（UpdateModel 整行覆盖）。
             max_output_tokens: model.max_output_tokens,
+            context_window_tokens: model.context_window_tokens,
+            input_price_usd_per_million_tokens:
+              model.input_price_usd_per_million_tokens,
+            output_price_usd_per_million_tokens:
+              model.output_price_usd_per_million_tokens,
+            release_date: model.release_date,
           })
         }
         aria-label={`切换 ${model.display_name} 状态`}

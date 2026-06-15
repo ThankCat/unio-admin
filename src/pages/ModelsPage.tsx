@@ -7,6 +7,7 @@ import {
   PlusIcon,
   SearchIcon,
   SlidersHorizontalIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { listModels } from "@/lib/api/models";
 import type { StatusFilter } from "@/lib/api/types";
@@ -45,6 +46,8 @@ import { ModelFormDialog } from "@/components/models/ModelFormDialog";
 import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
 import { PricesDialog } from "@/components/models/PricesDialog";
 import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDialog";
+import { DeleteModelDialog } from "@/components/models/DeleteModelDialog";
+import { CatalogUpdateDialog } from "@/components/models/CatalogUpdateDialog";
 
 const COLS = 6;
 const PAGE_SIZE = 20;
@@ -131,7 +134,7 @@ export function ModelsPage() {
                   <TableHead>展示名</TableHead>
                   <TableHead>来源</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead className="w-16 text-right">操作</TableHead>
+                  <TableHead className="w-32 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -173,7 +176,28 @@ export function ModelsPage() {
                       <TableCell className="font-medium">{m.model_id}</TableCell>
                       <TableCell>{m.display_name}</TableCell>
                       <TableCell>
-                        <SourceBadge source={m.source} />
+                        <div className="flex items-center gap-1.5">
+                          <SourceBadge source={m.source} />
+                          {m.catalog?.update_available ? (
+                            <CatalogUpdateDialog model={m}>
+                              <button
+                                type="button"
+                                aria-label="目录有更新"
+                                className="cursor-pointer"
+                              >
+                                <Badge
+                                  variant={
+                                    m.catalog.removed_upstream
+                                      ? "destructive"
+                                      : "default"
+                                  }
+                                >
+                                  {m.catalog.removed_upstream ? "已下架" : "有更新"}
+                                </Badge>
+                              </button>
+                            </CatalogUpdateDialog>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <ModelStatusToggle model={m} />
@@ -207,6 +231,16 @@ export function ModelsPage() {
                               <PencilIcon />
                             </Button>
                           </ModelFormDialog>
+                          <DeleteModelDialog model={m}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="删除"
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2Icon />
+                            </Button>
+                          </DeleteModelDialog>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -228,13 +262,13 @@ export function ModelsPage() {
   );
 }
 
-// 来源徽标：manual=手建，seed_models_dev=同步种子（元数据会被同步覆盖），import=导入。
+// 来源徽标：manual=空白手建，catalog=从 models.dev 目录采纳。
 function SourceBadge({ source }: { source: string }) {
   if (source === "manual") {
     return <Badge variant="secondary">手建</Badge>;
   }
-  if (source === "seed_models_dev") {
-    return <Badge variant="outline">同步</Badge>;
+  if (source === "catalog") {
+    return <Badge variant="outline">目录采纳</Badge>;
   }
   return <Badge variant="outline">{source}</Badge>;
 }
