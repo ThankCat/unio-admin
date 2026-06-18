@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PlayIcon, RefreshCwIcon, FlaskConicalIcon } from "lucide-react";
 import {
+  CheckIcon,
+  PlayIcon,
+  RefreshCwIcon,
+  FlaskConicalIcon,
+  XIcon,
+} from "lucide-react";
+import {
+  acceptCapabilitySuggestion,
+  dismissCapabilitySuggestion,
   getEnforcement,
   getObserveSummary,
   listAdapterProfiles,
+  listCapabilitySuggestions,
   listSyncJobs,
   materializeAdapterSeed,
   triggerSync,
+  type CapabilitySuggestion,
+  type SuggestionStatus,
   type SyncResult,
   type SyncJob,
 } from "@/lib/api/capability";
@@ -43,7 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SupportLevelBadge } from "@/components/capability/shared";
+import { SupportLevelBadge, EvidenceKindBadge } from "@/components/capability/shared";
 import { formatLimits } from "@/lib/capability/limits";
 
 export function CapabilityPage() {
@@ -52,7 +63,7 @@ export function CapabilityPage() {
       <CardHeader className="border-b">
         <CardTitle>能力中心</CardTitle>
         <CardDescription>
-          models.dev 同步、adapter 画像物化与 capability 闸门 enforce 状态
+          models.dev 同步、adapter 画像物化、能力自动校正与 capability 闸门 enforce 状态
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -60,6 +71,7 @@ export function CapabilityPage() {
           <TabsList>
             <TabsTrigger value="sync">同步</TabsTrigger>
             <TabsTrigger value="adapter">Adapter 画像</TabsTrigger>
+            <TabsTrigger value="suggestions">校正建议</TabsTrigger>
             <TabsTrigger value="enforce">Enforce 状态</TabsTrigger>
           </TabsList>
 
@@ -68,6 +80,9 @@ export function CapabilityPage() {
           </TabsContent>
           <TabsContent value="adapter" className="pt-4">
             <AdapterTab />
+          </TabsContent>
+          <TabsContent value="suggestions" className="pt-4">
+            <SuggestionsTab />
           </TabsContent>
           <TabsContent value="enforce" className="pt-4">
             <EnforceTab />
@@ -355,6 +370,178 @@ function AdapterTab() {
         </div>
       )}
     </div>
+  );
+}
+
+function SuggestionsTab() {
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<SuggestionStatus>("pending");
+
+  const modelsQuery = useQuery({
+    queryKey: ["all-models-enabled"],
+    queryFn: () => listAllModels("enabled"),
+  });
+
+  const suggestionsQuery = useQuery({
+    queryKey: ["capability-suggestions", status],
+    queryFn: () => listCapabilitySuggestions(status),
+  });
+
+  const modelNameById = new Map(
+    (modelsQuery.data ?? []).map((m) => [m.id, `${m.display_name}（${m.model_id}）`]),
+  );
+
+  const acceptMutation = useMutation({
+    mutationFn: (s: CapabilitySuggestion) =>
+      acceptCapabilitySuggestion(s.model_id, s.capability_key),
+    onSuccess: () => {
+      toast.success("已采纳建议");
+      queryClient.invalidateQueries({ queryKey: ["capability-suggestions"] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (s: CapabilitySuggestion) =>
+      dismissCapabilitySuggestion(s.model_id, s.capability_key),
+    onSuccess: () => {
+      toast.success("已忽略建议");
+      queryClient.invalidateQueries({ queryKey: ["capability-suggestions"] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const busy = acceptMutation.isPending || dismissMutation.isPending;
+  const items = suggestionsQuery.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Tabs value={status} onValueChange={(v) => setStatus(v as SuggestionStatus)}>
+          <TabsList>
+            <TabsTrigger value="pending">待采纳</TabsTrigger>
+            <TabsTrigger value="accepted">已采纳</TabsTrigger>
+            <TabsTrigger value="dismissed">已忽略</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="刷新"
+          onClick={() => suggestionsQuery.refetch()}
+        >
+          <RefreshCwIcon />
+        </Button>
+      </div>
+
+      <p className="text-muted-foreground text-xs">
+        由 worker 从真实成功流量被动学习产出。需开启{" "}
+        <code className="font-mono">CAPABILITY_AUTOCALIBRATE_ENABLED</code>{" "}
+        后才会持续写入；强证据在模型为 auto 档且单渠道时可自动补，其余进建议。
+      </p>
+
+      {suggestionsQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>加载失败</AlertTitle>
+          <AlertDescription>{suggestionsQuery.error.message}</AlertDescription>
+        </Alert>
+      ) : suggestionsQuery.isPending ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          {status === "pending"
+            ? "暂无待采纳建议（worker 关闭或尚未产生足够证据时为空）"
+            : "暂无记录"}
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>模型</TableHead>
+              <TableHead>能力</TableHead>
+              <TableHead>建议级别</TableHead>
+              <TableHead>证据</TableHead>
+              <TableHead>依据</TableHead>
+              {status === "pending" && <TableHead className="text-right">操作</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((s) => (
+              <SuggestionRow
+                key={s.id}
+                suggestion={s}
+                modelLabel={modelNameById.get(s.model_id) ?? `#${s.model_id}`}
+                showActions={status === "pending"}
+                busy={busy}
+                onAccept={() => acceptMutation.mutate(s)}
+                onDismiss={() => dismissMutation.mutate(s)}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
+function SuggestionRow({
+  suggestion: s,
+  modelLabel,
+  showActions,
+  busy,
+  onAccept,
+  onDismiss,
+}: {
+  suggestion: CapabilitySuggestion;
+  modelLabel: string;
+  showActions: boolean;
+  busy: boolean;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const ratio = s.rationale.evidence_ratio;
+  const ratioPct =
+    ratio != null && Number.isFinite(ratio)
+      ? `${Math.round(ratio * 100)}%`
+      : "—";
+
+  return (
+    <TableRow>
+      <TableCell className="max-w-[12rem] truncate text-sm">{modelLabel}</TableCell>
+      <TableCell className="font-mono text-sm">{s.capability_key}</TableCell>
+      <TableCell>
+        <SupportLevelBadge level={s.suggested_level} />
+      </TableCell>
+      <TableCell>
+        <EvidenceKindBadge kind={s.evidence_kind} />
+      </TableCell>
+      <TableCell className="text-muted-foreground text-xs">
+        <div className="tabular-nums">
+          成功 {s.rationale.success_count} · 证据 {s.rationale.evidence_count} · 比例 {ratioPct}
+        </div>
+        {s.decided_by && (
+          <div className="mt-0.5">决策人 {s.decided_by}</div>
+        )}
+      </TableCell>
+      {showActions && (
+        <TableCell className="text-right">
+          <div className="flex justify-end gap-1">
+            <Button size="sm" disabled={busy} onClick={onAccept}>
+              <CheckIcon data-icon="inline-start" />
+              采纳
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={onDismiss}>
+              <XIcon data-icon="inline-start" />
+              忽略
+            </Button>
+          </div>
+        </TableCell>
+      )}
+    </TableRow>
   );
 }
 

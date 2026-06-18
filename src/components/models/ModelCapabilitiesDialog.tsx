@@ -7,10 +7,14 @@ import {
 import { toast } from "sonner";
 import { ArrowLeftIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
+  AUTO_CALIBRATE_ACTOR,
   deleteModelCapability,
+  getModelAutocalibrateMode,
   listCapabilityKeys,
   listModelCapabilities,
+  setModelAutocalibrateMode,
   setModelCapability,
+  type AutocalibrateMode,
   type ModelCapability,
   type SupportLevel,
 } from "@/lib/api/capability";
@@ -43,7 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SupportLevelBadge } from "@/components/capability/shared";
+import { SupportLevelBadge, AutoCalibrateBadge } from "@/components/capability/shared";
 import { formatLimits, parseLimitsInput } from "@/lib/capability/limits";
 
 // children-trigger 弹窗：与 PricesDialog 一致，自管 open 状态，便于嵌进操作列。
@@ -70,10 +74,26 @@ function CapabilityManager({ model }: { model: Model }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ModelCapability | "new" | null>(null);
   const capsKey = ["model-capabilities", model.id];
+  const modeKey = ["model-autocalibrate-mode", model.id];
 
   const capsQuery = useQuery({
     queryKey: capsKey,
     queryFn: () => listModelCapabilities(model.id),
+  });
+
+  const modeQuery = useQuery({
+    queryKey: modeKey,
+    queryFn: () => getModelAutocalibrateMode(model.id),
+  });
+
+  const modeMutation = useMutation({
+    mutationFn: (mode: AutocalibrateMode) =>
+      setModelAutocalibrateMode(model.id, mode),
+    onSuccess: (mode) => {
+      toast.success(`自动校正档位已设为 ${mode}`);
+      queryClient.setQueryData(modeKey, mode);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: capsKey });
@@ -112,11 +132,32 @@ function CapabilityManager({ model }: { model: Model }) {
       </DialogHeader>
 
       <div className="flex flex-col gap-4">
-        <div>
-          <Button size="sm" onClick={() => setEditing("new")}>
-            <PlusIcon data-icon="inline-start" />
-            新增能力
-          </Button>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <Button size="sm" onClick={() => setEditing("new")}>
+              <PlusIcon data-icon="inline-start" />
+              新增能力
+            </Button>
+          </div>
+          <div className="w-full max-w-xs sm:w-auto">
+            <label className="text-muted-foreground mb-1 block text-xs">
+              能力自动校正档位
+            </label>
+            <Select
+              value={modeQuery.data ?? "suggest"}
+              disabled={modeQuery.isPending || modeMutation.isPending}
+              onValueChange={(v) => modeMutation.mutate(v as AutocalibrateMode)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">off（不学习）</SelectItem>
+                <SelectItem value="suggest">suggest（仅建议，默认）</SelectItem>
+                <SelectItem value="auto">auto（强证据自动补）</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {capsQuery.isError ? (
@@ -163,10 +204,12 @@ function CapabilityRow({
   onEdit: () => void;
   onChanged: () => void;
 }) {
+  const isAuto = cap.updated_by === AUTO_CALIBRATE_ACTOR;
+
   const mutation = useMutation({
     mutationFn: () => deleteModelCapability(modelId, cap.capability_key),
     onSuccess: () => {
-      toast.success("已删除能力");
+      toast.success(isAuto ? "已撤销自动补的能力" : "已删除能力");
       onChanged();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -180,6 +223,7 @@ function CapabilityRow({
             {cap.capability_key}
           </span>
           <SupportLevelBadge level={cap.support_level} />
+          {isAuto && <AutoCalibrateBadge />}
         </div>
         {cap.limits != null && (
           <div className="text-muted-foreground mt-1 font-mono text-xs">
@@ -195,7 +239,7 @@ function CapabilityRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="删除"
+          aria-label={isAuto ? "撤销自动补的能力" : "删除"}
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
         >

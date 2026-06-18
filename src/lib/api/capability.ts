@@ -240,3 +240,81 @@ export async function getObserveSummary(params?: {
   );
   return res.data.data;
 }
+
+// ---- 能力自动校正（DESIGN-capability-autocalibration）----
+
+export type EvidenceKind = "strong" | "weak";
+export type SuggestionStatus = "pending" | "accepted" | "dismissed";
+export type AutocalibrateMode = "off" | "suggest" | "auto";
+
+export const AUTO_CALIBRATE_ACTOR = "auto_calibrate";
+
+export interface SuggestionRationale {
+  success_count: number;
+  evidence_count: number;
+  evidence_ratio: number;
+  channel_ids?: number[];
+  lookback_hours?: number;
+}
+
+export interface CapabilitySuggestion {
+  id: number;
+  model_id: number;
+  capability_key: string;
+  suggested_level: SupportLevel;
+  evidence_kind: EvidenceKind;
+  rationale: SuggestionRationale;
+  status: SuggestionStatus;
+  created_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+}
+
+export async function listCapabilitySuggestions(
+  status: SuggestionStatus = "pending",
+): Promise<CapabilitySuggestion[]> {
+  const res = await api.get<{ data: CapabilitySuggestion[] }>(
+    "/admin/v1/capability/suggestions",
+    { params: { status } },
+  );
+  return res.data.data;
+}
+
+export async function acceptCapabilitySuggestion(
+  modelId: number,
+  capabilityKey: string,
+): Promise<ModelCapability> {
+  const res = await api.post<{ data: ModelCapability }>(
+    `/admin/v1/models/${modelId}/capability-suggestions/${encodeURIComponent(capabilityKey)}/accept`,
+  );
+  return res.data.data;
+}
+
+export async function dismissCapabilitySuggestion(
+  modelId: number,
+  capabilityKey: string,
+): Promise<void> {
+  await api.post(
+    `/admin/v1/models/${modelId}/capability-suggestions/${encodeURIComponent(capabilityKey)}/dismiss`,
+  );
+}
+
+export async function getModelAutocalibrateMode(
+  modelId: number,
+): Promise<AutocalibrateMode> {
+  const res = await api.get<{ data: { mode: AutocalibrateMode } }>(
+    `/admin/v1/models/${modelId}/capability-autocalibrate`,
+  );
+  return res.data.data.mode;
+}
+
+export async function setModelAutocalibrateMode(
+  modelId: number,
+  mode: AutocalibrateMode,
+): Promise<AutocalibrateMode> {
+  const res = await api.put<{ data: { mode: AutocalibrateMode } }>(
+    `/admin/v1/models/${modelId}/capability-autocalibrate`,
+    { mode },
+  );
+  return res.data.data.mode;
+}
