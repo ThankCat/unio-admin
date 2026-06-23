@@ -166,11 +166,19 @@ function AddBindingForm({
 
   const canSubmit = Number(modelId) > 0 && upstream.trim() !== "";
 
+  function handleModelChange(id: string) {
+    setModelId(id);
+    const selected = availableModels.find((m) => String(m.id) === id);
+    if (selected) {
+      setUpstream(selected.model_id);
+    }
+  }
+
   return (
     <div className="bg-muted/40 flex flex-wrap items-end gap-3 rounded-md border p-3">
       <Field className="min-w-44 flex-1">
         <FieldLabel htmlFor="bind_model">模型</FieldLabel>
-        <Select value={modelId} onValueChange={setModelId}>
+        <Select value={modelId} onValueChange={handleModelChange}>
           <SelectTrigger id="bind_model" className="w-full">
             <SelectValue
               placeholder={

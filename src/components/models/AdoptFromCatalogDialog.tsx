@@ -1,7 +1,7 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, useMemo, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import {
   createModelFromCatalog,
   getCatalogEntry,
@@ -10,6 +10,7 @@ import {
   type CatalogEntryDetail,
 } from "@/lib/api/modelCatalog";
 import { listCapabilityKeys, type SupportLevel } from "@/lib/api/capability";
+import { AddCapabilitiesDialog } from "@/components/capability/AddCapabilitiesDialog";
 import { apiErrorMessage } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,7 +116,7 @@ function AdoptForm({
 
   const queryClient = useQueryClient();
   const keysQuery = useQuery({
-    queryKey: ["capability-keys"],
+    queryKey: ["capability-keys", "v2"],
     queryFn: listCapabilityKeys,
   });
 
@@ -154,13 +155,21 @@ function AdoptForm({
   }
 
   const availableKeys = (keysQuery.data ?? []).filter(
-    (k) => !caps.some((c) => c.capability_key === k),
+    (k) => !caps.some((c) => c.capability_key === k.key),
+  );
+  const keyDefByKey = useMemo(
+    () => new Map((keysQuery.data ?? []).map((k) => [k.key, k])),
+    [keysQuery.data],
   );
 
-  function addCapability(key: string) {
+  function addCapabilities(keys: string[]) {
     setCaps((prev) => [
       ...prev,
-      { capability_key: key, support_level: "full", limits: null },
+      ...keys.map((key) => ({
+        capability_key: key,
+        support_level: "full" as SupportLevel,
+        limits: null,
+      })),
     ]);
   }
   function setCapLevel(key: string, level: SupportLevel) {
@@ -224,22 +233,31 @@ function AdoptForm({
         </div>
 
         <Field>
-          <FieldLabel>能力（可增删改）</FieldLabel>
+          <FieldLabel>能力 ({caps.length})</FieldLabel>
           <div className="flex flex-col gap-2">
             {caps.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 无能力提示，可在下方新增。
               </p>
             ) : (
-              <ul className="divide-border divide-y rounded-md border">
-                {caps.map((c) => (
+              <ul className="divide-border max-h-60 divide-y overflow-y-auto rounded-md border">
+                {caps.map((c) => {
+                  const def = keyDefByKey.get(c.capability_key);
+                  return (
                   <li
                     key={c.capability_key}
                     className="flex items-center gap-2 p-2"
                   >
-                    <span className="flex-1 font-mono text-sm">
-                      {c.capability_key}
-                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm">{c.capability_key}</span>
+                      </div>
+                      {def?.display_name && (
+                        <span className="text-muted-foreground text-xs">
+                          {def.display_name}
+                        </span>
+                      )}
+                    </div>
                     <Select
                       value={c.support_level}
                       onValueChange={(v) =>
@@ -265,25 +283,32 @@ function AdoptForm({
                       <Trash2Icon />
                     </Button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
-            {availableKeys.length > 0 && (
-              <Select value="" onValueChange={addCapability}>
-                <SelectTrigger size="sm" className="w-full">
-                  <span className="text-muted-foreground flex items-center gap-1 text-sm">
-                    <PlusIcon className="size-4" />
-                    新增能力
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {availableKeys.map((k) => (
-                    <SelectItem key={k} value={k} className="font-mono">
-                      {k}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {keysQuery.isPending ? (
+              <p className="text-muted-foreground flex items-center gap-1 text-sm">
+                <Spinner data-icon="inline-start" />
+                加载能力字典…
+              </p>
+            ) : keysQuery.isError ? (
+              <p className="text-destructive text-sm">
+                {apiErrorMessage(keysQuery.error)}
+              </p>
+            ) : availableKeys.length > 0 ? (
+              <AddCapabilitiesDialog
+                keys={availableKeys}
+                onConfirm={addCapabilities}
+              />
+            ) : (keysQuery.data?.length ?? 0) > 0 ? (
+              <p className="text-muted-foreground text-sm">
+                已包含能力字典中的全部 key。
+              </p>
+            ) : (
+              <p className="text-destructive text-sm">
+                能力字典为空，请确认 capability_keys 已迁移 seed。
+              </p>
             )}
           </div>
         </Field>

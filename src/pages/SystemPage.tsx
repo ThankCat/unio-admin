@@ -266,7 +266,7 @@ function SyncJobsTab() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-xs">
-          models.dev 同步任务审计（只读）。触发同步请到「能力中心 → 同步」。
+          models.dev 同步任务审计（只读）。触发同步请到「模型 → 参考目录」。
         </p>
         <Button
           variant="ghost"

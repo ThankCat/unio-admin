@@ -106,7 +106,6 @@ function DetailContent({ detail }: { detail: RequestDetail }) {
           <Row label="API Key ID">{detail.api_key_id}</Row>
           <Row label="最终 Provider">{dash(detail.final_provider_id)}</Row>
           <Row label="最终 Channel">{dash(detail.final_channel_id)}</Row>
-          <Row label="能力闸门">{dash(detail.capability_check_result)}</Row>
           <Row label="创建时间">{formatDateTime(detail.created_at)}</Row>
           <Row label="开始时间">{formatDateTime(detail.started_at)}</Row>
           <Row label="完成时间">

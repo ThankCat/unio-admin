@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   BoxIcon,
@@ -28,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,14 +47,20 @@ import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
 import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDialog";
 import { DeleteModelDialog } from "@/components/models/DeleteModelDialog";
 import { CatalogUpdateDialog } from "@/components/models/CatalogUpdateDialog";
+import { ModelCatalogTab } from "@/components/models/ModelCatalogTab";
 
 const COLS = 6;
 const PAGE_SIZE = 20;
+type ModelsPageTab = "ops" | "catalog";
 
 export function ModelsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pageTab: ModelsPageTab =
+    searchParams.get("tab") === "catalog" ? "catalog" : "ops";
   const [tab, setTab] = useState<StatusFilter>("enabled");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
+  const [customCreateOpen, setCustomCreateOpen] = useState(false);
 
   const search = useDebouncedValue(searchInput.trim(), 300);
 
@@ -83,21 +90,45 @@ export function ModelsPage() {
     setPage(1);
   }
 
+  function setPageTab(next: ModelsPageTab) {
+    const params = new URLSearchParams(searchParams);
+    if (next === "ops") {
+      params.delete("tab");
+    } else {
+      params.set("tab", next);
+    }
+    setSearchParams(params, { replace: true });
+  }
+
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>模型</CardTitle>
-        <CardDescription>对外暴露与计费的模型目录</CardDescription>
-        <CardAction>
-          <ModelFormDialog>
-            <Button size="sm">
+        <CardDescription>
+          运营模型是对外暴露与计费的实体；参考目录来自 models.dev，用于采纳创建模型。
+        </CardDescription>
+        {pageTab === "ops" ? (
+          <CardAction>
+            <Button size="sm" onClick={() => setCustomCreateOpen(true)}>
               <PlusIcon data-icon="inline-start" />
               新建
             </Button>
-          </ModelFormDialog>
-        </CardAction>
+            <ModelFormDialog
+              key={customCreateOpen ? "create-open" : "create-closed"}
+              open={customCreateOpen}
+              onOpenChange={setCustomCreateOpen}
+            />
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as ModelsPageTab)}>
+          <TabsList>
+            <TabsTrigger value="ops">运营模型</TabsTrigger>
+            <TabsTrigger value="catalog">参考目录</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="ops" className="flex flex-col gap-4 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs value={tab} onValueChange={changeTab}>
             <TabsList>
@@ -246,6 +277,12 @@ export function ModelsPage() {
             />
           </>
         )}
+          </TabsContent>
+
+          <TabsContent value="catalog" className="pt-4">
+            <ModelCatalogTab />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

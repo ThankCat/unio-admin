@@ -1,31 +1,13 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Navigate, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  CheckIcon,
-  PlayIcon,
-  RefreshCwIcon,
-  FlaskConicalIcon,
-  XIcon,
-} from "lucide-react";
-import {
-  acceptCapabilitySuggestion,
-  dismissCapabilitySuggestion,
-  getEnforcement,
-  getObserveSummary,
   listAdapterProfiles,
-  listCapabilitySuggestions,
-  listSyncJobs,
   materializeAdapterSeed,
-  triggerSync,
-  type CapabilitySuggestion,
-  type SuggestionStatus,
-  type SyncResult,
-  type SyncJob,
 } from "@/lib/api/capability";
 import { listAllModels, type Model } from "@/lib/api/models";
 import { apiErrorMessage } from "@/lib/api/client";
-import { formatDateTime } from "@/lib/format";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,7 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -46,221 +27,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { SupportLevelBadge, EvidenceKindBadge } from "@/components/capability/shared";
+import { SupportLevelBadge } from "@/components/capability/shared";
+import { CapabilityDictionaryTab } from "@/components/capability/CapabilityDictionaryTab";
 import { formatLimits } from "@/lib/capability/limits";
 
+type CapabilityPageTab = "dictionary" | "adapter";
+
 export function CapabilityPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+
+  if (tabParam === "sync") {
+    return <Navigate to="/models?tab=catalog" replace />;
+  }
+
+  const pageTab: CapabilityPageTab =
+    tabParam === "adapter" ? "adapter" : "dictionary";
+
+  function setPageTab(next: CapabilityPageTab) {
+    const params = new URLSearchParams(searchParams);
+    if (next === "dictionary") {
+      params.delete("tab");
+    } else {
+      params.set("tab", next);
+    }
+    setSearchParams(params, { replace: true });
+  }
+
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>能力中心</CardTitle>
+        <CardTitle>能力</CardTitle>
         <CardDescription>
-          models.dev 同步、adapter 画像物化、能力自动校正与 capability 闸门 enforce 状态
+          维护 capability_keys 字典（合法 key 唯一真源），以及 adapter 能力画像物化。
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="sync">
+        <Tabs
+          value={pageTab}
+          onValueChange={(v) => setPageTab(v as CapabilityPageTab)}
+        >
           <TabsList>
-            <TabsTrigger value="sync">同步</TabsTrigger>
+            <TabsTrigger value="dictionary">能力字典</TabsTrigger>
             <TabsTrigger value="adapter">Adapter 画像</TabsTrigger>
-            <TabsTrigger value="suggestions">校正建议</TabsTrigger>
-            <TabsTrigger value="enforce">Enforce 状态</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sync" className="pt-4">
-            <SyncTab />
+          <TabsContent value="dictionary" className="pt-4">
+            <CapabilityDictionaryTab />
           </TabsContent>
+
           <TabsContent value="adapter" className="pt-4">
             <AdapterTab />
-          </TabsContent>
-          <TabsContent value="suggestions" className="pt-4">
-            <SuggestionsTab />
-          </TabsContent>
-          <TabsContent value="enforce" className="pt-4">
-            <EnforceTab />
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   );
-}
-
-function SyncTab() {
-  const queryClient = useQueryClient();
-  const [result, setResult] = useState<SyncResult | null>(null);
-
-  const jobsQuery = useQuery({
-    queryKey: ["capability-sync-jobs"],
-    queryFn: () => listSyncJobs(20),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (dryRun: boolean) => triggerSync(dryRun),
-    onSuccess: (res) => {
-      setResult(res);
-      toast.success(res.dry_run ? "预演完成" : "同步完成");
-      if (!res.dry_run) {
-        queryClient.invalidateQueries({ queryKey: ["capability-sync-jobs"] });
-      }
-    },
-    onError: (err) => toast.error(apiErrorMessage(err)),
-  });
-
-  const busy = mutation.isPending;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => mutation.mutate(true)}
-        >
-          {busy ? <Spinner data-icon="inline-start" /> : <FlaskConicalIcon data-icon="inline-start" />}
-          预演（dry-run）
-        </Button>
-        <Button size="sm" disabled={busy} onClick={() => mutation.mutate(false)}>
-          {busy ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
-          执行同步
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          同步只在新模型首次落库时写粗能力；既有模型能力靠手工覆盖维护。
-        </p>
-      </div>
-
-      {result && <SyncResultCard result={result} />}
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-medium">最近同步任务</h3>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="刷新"
-            onClick={() => jobsQuery.refetch()}
-          >
-            <RefreshCwIcon />
-          </Button>
-        </div>
-        {jobsQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{jobsQuery.error.message}</AlertDescription>
-          </Alert>
-        ) : jobsQuery.isPending ? (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : (jobsQuery.data ?? []).length === 0 ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            还没有同步任务
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">ID</TableHead>
-                <TableHead>来源</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead>结束时间</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(jobsQuery.data ?? []).map((job) => (
-                <SyncJobRow key={job.id} job={job} />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SyncResultCard({ result }: { result: SyncResult }) {
-  return (
-    <Alert>
-      <AlertTitle className="flex items-center gap-2">
-        {result.dry_run ? (
-          <Badge variant="secondary">预演</Badge>
-        ) : (
-          <Badge variant="default">已应用</Badge>
-        )}
-        同步结果
-      </AlertTitle>
-      <AlertDescription>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-          <Stat label="feed 模型" value={result.feed_models} />
-          <Stat label="写入目录" value={result.upserted} />
-          <Stat label="下架" value={result.removed} />
-          <Stat label="能力提示" value={result.capability_hints} />
-        </div>
-        {result.removed_canonical_ids.length > 0 && (
-          <p className="text-muted-foreground mt-2 text-xs">
-            上游下架：{result.removed_canonical_ids.join(", ")}
-          </p>
-        )}
-        {result.fingerprint && (
-          <p className="text-muted-foreground mt-1 font-mono text-xs">
-            指纹 {result.fingerprint.slice(0, 16)}…
-          </p>
-        )}
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-function SyncJobRow({ job }: { job: SyncJob }) {
-  return (
-    <TableRow>
-      <TableCell className="text-muted-foreground tabular-nums">
-        {job.id}
-      </TableCell>
-      <TableCell>{job.source}</TableCell>
-      <TableCell>
-        <JobStatusBadge status={job.status} />
-        {job.error_text && (
-          <div className="text-destructive mt-1 max-w-xs truncate text-xs">
-            {job.error_text}
-          </div>
-        )}
-      </TableCell>
-      <TableCell className="text-muted-foreground text-xs">
-        {formatDateTime(job.created_at)}
-      </TableCell>
-      <TableCell className="text-muted-foreground text-xs">
-        {job.finished_at ? formatDateTime(job.finished_at) : "—"}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function JobStatusBadge({ status }: { status: string }) {
-  if (status === "succeeded") return <Badge variant="default">成功</Badge>;
-  if (status === "running") return <Badge variant="secondary">运行中</Badge>;
-  if (status === "failed") return <Badge variant="destructive">失败</Badge>;
-  return <Badge variant="outline">{status}</Badge>;
 }
 
 function AdapterTab() {
@@ -369,279 +191,6 @@ function AdapterTab() {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function SuggestionsTab() {
-  const queryClient = useQueryClient();
-  const [status, setStatus] = useState<SuggestionStatus>("pending");
-
-  const modelsQuery = useQuery({
-    queryKey: ["all-models-enabled"],
-    queryFn: () => listAllModels("enabled"),
-  });
-
-  const suggestionsQuery = useQuery({
-    queryKey: ["capability-suggestions", status],
-    queryFn: () => listCapabilitySuggestions(status),
-  });
-
-  const modelNameById = new Map(
-    (modelsQuery.data ?? []).map((m) => [m.id, `${m.display_name}（${m.model_id}）`]),
-  );
-
-  const acceptMutation = useMutation({
-    mutationFn: (s: CapabilitySuggestion) =>
-      acceptCapabilitySuggestion(s.model_id, s.capability_key),
-    onSuccess: () => {
-      toast.success("已采纳建议");
-      queryClient.invalidateQueries({ queryKey: ["capability-suggestions"] });
-    },
-    onError: (err) => toast.error(apiErrorMessage(err)),
-  });
-
-  const dismissMutation = useMutation({
-    mutationFn: (s: CapabilitySuggestion) =>
-      dismissCapabilitySuggestion(s.model_id, s.capability_key),
-    onSuccess: () => {
-      toast.success("已忽略建议");
-      queryClient.invalidateQueries({ queryKey: ["capability-suggestions"] });
-    },
-    onError: (err) => toast.error(apiErrorMessage(err)),
-  });
-
-  const busy = acceptMutation.isPending || dismissMutation.isPending;
-  const items = suggestionsQuery.data ?? [];
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs value={status} onValueChange={(v) => setStatus(v as SuggestionStatus)}>
-          <TabsList>
-            <TabsTrigger value="pending">待采纳</TabsTrigger>
-            <TabsTrigger value="accepted">已采纳</TabsTrigger>
-            <TabsTrigger value="dismissed">已忽略</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="刷新"
-          onClick={() => suggestionsQuery.refetch()}
-        >
-          <RefreshCwIcon />
-        </Button>
-      </div>
-
-      <p className="text-muted-foreground text-xs">
-        由 worker 从真实成功流量被动学习产出。需开启{" "}
-        <code className="font-mono">CAPABILITY_AUTOCALIBRATE_ENABLED</code>{" "}
-        后才会持续写入；强证据在模型为 auto 档且单渠道时可自动补，其余进建议。
-      </p>
-
-      {suggestionsQuery.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>加载失败</AlertTitle>
-          <AlertDescription>{suggestionsQuery.error.message}</AlertDescription>
-        </Alert>
-      ) : suggestionsQuery.isPending ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <p className="text-muted-foreground py-6 text-center text-sm">
-          {status === "pending"
-            ? "暂无待采纳建议（worker 关闭或尚未产生足够证据时为空）"
-            : "暂无记录"}
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>模型</TableHead>
-              <TableHead>能力</TableHead>
-              <TableHead>建议级别</TableHead>
-              <TableHead>证据</TableHead>
-              <TableHead>依据</TableHead>
-              {status === "pending" && <TableHead className="text-right">操作</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((s) => (
-              <SuggestionRow
-                key={s.id}
-                suggestion={s}
-                modelLabel={modelNameById.get(s.model_id) ?? `#${s.model_id}`}
-                showActions={status === "pending"}
-                busy={busy}
-                onAccept={() => acceptMutation.mutate(s)}
-                onDismiss={() => dismissMutation.mutate(s)}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </div>
-  );
-}
-
-function SuggestionRow({
-  suggestion: s,
-  modelLabel,
-  showActions,
-  busy,
-  onAccept,
-  onDismiss,
-}: {
-  suggestion: CapabilitySuggestion;
-  modelLabel: string;
-  showActions: boolean;
-  busy: boolean;
-  onAccept: () => void;
-  onDismiss: () => void;
-}) {
-  const ratio = s.rationale.evidence_ratio;
-  const ratioPct =
-    ratio != null && Number.isFinite(ratio)
-      ? `${Math.round(ratio * 100)}%`
-      : "—";
-
-  return (
-    <TableRow>
-      <TableCell className="max-w-[12rem] truncate text-sm">{modelLabel}</TableCell>
-      <TableCell className="font-mono text-sm">{s.capability_key}</TableCell>
-      <TableCell>
-        <SupportLevelBadge level={s.suggested_level} />
-      </TableCell>
-      <TableCell>
-        <EvidenceKindBadge kind={s.evidence_kind} />
-      </TableCell>
-      <TableCell className="text-muted-foreground text-xs">
-        <div className="tabular-nums">
-          成功 {s.rationale.success_count} · 证据 {s.rationale.evidence_count} · 比例 {ratioPct}
-        </div>
-        {s.decided_by && (
-          <div className="mt-0.5">决策人 {s.decided_by}</div>
-        )}
-      </TableCell>
-      {showActions && (
-        <TableCell className="text-right">
-          <div className="flex justify-end gap-1">
-            <Button size="sm" disabled={busy} onClick={onAccept}>
-              <CheckIcon data-icon="inline-start" />
-              采纳
-            </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={onDismiss}>
-              <XIcon data-icon="inline-start" />
-              忽略
-            </Button>
-          </div>
-        </TableCell>
-      )}
-    </TableRow>
-  );
-}
-
-function EnforceTab() {
-  const enforcementQuery = useQuery({
-    queryKey: ["capability-enforcement"],
-    queryFn: getEnforcement,
-  });
-
-  const summaryQuery = useQuery({
-    queryKey: ["capability-observe-summary"],
-    queryFn: () => getObserveSummary(),
-  });
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="mb-2 text-sm font-medium">各表面 enforce 现状</h3>
-        {enforcementQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{enforcementQuery.error.message}</AlertDescription>
-          </Alert>
-        ) : enforcementQuery.isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>表面</TableHead>
-                  <TableHead>操作</TableHead>
-                  <TableHead>env 开关</TableHead>
-                  <TableHead>模式</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {enforcementQuery.data?.surfaces.map((s) => (
-                  <TableRow key={s.surface}>
-                    <TableCell className="font-medium">{s.surface}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {s.operation}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {s.env_var}
-                    </TableCell>
-                    <TableCell>
-                      {s.mode === "enforce" ? (
-                        <Badge variant="destructive">enforce</Badge>
-                      ) : (
-                        <Badge variant="secondary">observe</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <p className="text-muted-foreground mt-2 text-xs">
-              {enforcementQuery.data?.note}
-            </p>
-          </>
-        )}
-      </div>
-
-      <div>
-        <h3 className="mb-2 text-sm font-medium">observe 期判定分布</h3>
-        {summaryQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{summaryQuery.error.message}</AlertDescription>
-          </Alert>
-        ) : summaryQuery.isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (summaryQuery.data?.results ?? []).length === 0 ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            暂无请求判定数据
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>判定结论</TableHead>
-                <TableHead className="text-right">请求数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(summaryQuery.data?.results ?? []).map((r, i) => (
-                <TableRow key={r.result ?? `null-${i}`}>
-                  <TableCell className="font-mono text-sm">
-                    {r.result ?? "bypassed（未判定）"}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {r.total}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
     </div>
   );
 }

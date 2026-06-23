@@ -19,7 +19,6 @@ export interface RequestSummary {
   status: string;
   final_provider_id: number | null;
   final_channel_id: number | null;
-  capability_check_result: string | null;
   error_code: string | null;
   error_message: string | null;
   delivery_status: string;
@@ -52,7 +51,6 @@ export interface Attempt {
   internal_error_detail?: string | null;
   response_started_at: string | null;
   final_usage_received: boolean;
-  required_capabilities: string[];
   started_at: string;
   completed_at: string | null;
   created_at: string;

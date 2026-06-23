@@ -42,16 +42,29 @@ interface FieldErrors {
 }
 
 // 同一个弹窗承担新建与编辑：传了 model 即编辑（model_id 只读），否则新建。
+//
+// 支持两种用法：① 传 children 作为内置触发器（自管 open）；② 传 open/onOpenChange 受控
+// （供 ModelsPage「新建」下拉的「自定义」项打开，无需独立触发按钮）。
 export function ModelFormDialog({
   model,
   children,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   model?: Model;
-  children: ReactNode;
+  children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const isEdit = !!model;
 
-  const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [modelId, setModelId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [ownedBy, setOwnedBy] = useState("");
@@ -106,6 +119,7 @@ export function ModelFormDialog({
   });
 
   // 打开时按当前 model 预填（编辑）或清空（新建），并清掉上次的校验/请求状态。
+  // 非受控用法（children 触发）经此回填；受控用法（无触发器）由调用方以 key 重挂载保证初值干净。
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
@@ -160,7 +174,7 @@ export function ModelFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEdit ? "编辑模型" : "新建模型"}</DialogTitle>

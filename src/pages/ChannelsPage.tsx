@@ -9,7 +9,6 @@ import {
   PencilIcon,
   PlusIcon,
   SearchIcon,
-  SlidersHorizontalIcon,
   Trash2Icon,
 } from "lucide-react";
 import { listChannels, type Channel } from "@/lib/api/channels";
@@ -35,7 +34,6 @@ import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
 import { DeleteChannelDialog } from "@/components/channels/DeleteChannelDialog";
 import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
 import { ChannelPricesDialog } from "@/components/channels/ChannelPricesDialog";
-import { ChannelCapabilityOverridesDialog } from "@/components/channels/ChannelCapabilityOverridesDialog";
 import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
 import {
   Table,
@@ -201,7 +199,6 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
   const [rotateOpen, setRotateOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [pricesOpen, setPricesOpen] = useState(false);
-  const [capsOpen, setCapsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
@@ -233,10 +230,6 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
             <DropdownMenuItem onSelect={() => setPricesOpen(true)}>
               <CircleDollarSignIcon />
               定价（售价/成本）
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setCapsOpen(true)}>
-              <SlidersHorizontalIcon />
-              能力收紧
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setEditOpen(true)}>
               <PencilIcon />
@@ -275,11 +268,6 @@ function ChannelRow({ channel: c }: { channel: Channel }) {
         <ChannelPricesDialog
           open={pricesOpen}
           onOpenChange={setPricesOpen}
-          channel={c}
-        />
-        <ChannelCapabilityOverridesDialog
-          open={capsOpen}
-          onOpenChange={setCapsOpen}
           channel={c}
         />
         <DeleteChannelDialog
