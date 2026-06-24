@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -11,45 +12,48 @@ import {
 } from "recharts";
 import {
   ActivityIcon,
-  CableIcon,
+  AlertTriangleIcon,
+  BadgePercentIcon,
+  CircleCheckIcon,
   CircleDollarSignIcon,
+  ClockIcon,
   CoinsIcon,
-  GaugeIcon,
+  DatabaseIcon,
+  HourglassIcon,
+  ReceiptTextIcon,
   TrendingUpIcon,
-  TriangleAlertIcon,
-  WalletIcon,
+  ZapIcon,
 } from "lucide-react";
 import {
-  getOverview,
+  getBreakdown,
+  getPerformanceSeries,
+  getRadar,
   getTimeseries,
-  type DashboardOverview,
-  type MoneyByCurrency,
+  type BreakdownDimension,
+  type HealthBucket,
+  type PlatformLevel,
+  type RadarReport,
+  type RangeQuery,
   type RequestPoint,
   type SpendPoint,
-  type TimeseriesInterval,
-  type TimeseriesMetric,
-  type TokenPoint,
 } from "@/lib/api/dashboard";
+import { useRangeQuery } from "@/hooks/useRangeQuery";
+import { RangeFilter } from "@/components/common/RangeFilter";
+import { MetricCard, MetricGrid } from "@/components/common/MetricCard";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+  formatCompact,
+  formatInt,
+  formatLatencyMs,
+  formatPercent,
+  formatTPS,
+  formatUSD,
+} from "@/lib/format";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -58,22 +62,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { trimDecimal } from "@/lib/format";
-
-const RANGES = {
-  "24h": { label: "近 24 小时", hours: 24, interval: "hour" as TimeseriesInterval },
-  "7d": { label: "近 7 天", hours: 24 * 7, interval: "day" as TimeseriesInterval },
-  "30d": { label: "近 30 天", hours: 24 * 30, interval: "day" as TimeseriesInterval },
-} as const;
-
-type RangeKey = keyof typeof RANGES;
-
-const METRICS: { key: TimeseriesMetric; label: string }[] = [
-  { key: "requests", label: "请求" },
-  { key: "tokens", label: "Token" },
-  { key: "spend", label: "收入" },
-  { key: "cost", label: "成本" },
-];
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -83,15 +79,7 @@ const CHART_COLORS = [
   "var(--chart-5)",
 ];
 
-function pct(rate: number): string {
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-function fmtInt(n: number): string {
-  return n.toLocaleString();
-}
-
-function fmtBucket(iso: string, interval: TimeseriesInterval): string {
+function fmtBucket(iso: string, interval: "hour" | "day"): string {
   const d = new Date(iso);
   if (interval === "hour") {
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:00`;
@@ -99,444 +87,531 @@ function fmtBucket(iso: string, interval: TimeseriesInterval): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-function MoneyList({ items }: { items: MoneyByCurrency[] }) {
-  if (items.length === 0) {
-    return <span className="text-muted-foreground text-sm">暂无</span>;
-  }
-  return (
-    <div className="flex flex-col gap-0.5">
-      {items.map((m) => (
-        <div key={m.currency} className="tabular-nums">
-          <span className="text-xl font-semibold tracking-tight">
-            {trimDecimal(m.amount)}
-          </span>{" "}
-          <span className="text-muted-foreground text-xs">{m.currency}</span>
-        </div>
-      ))}
-    </div>
-  );
+// 成功率/毛利的 intent 色板。
+function rateIntent(rate: number): "success" | "warning" | "danger" {
+  if (rate >= 0.95) return "success";
+  if (rate >= 0.8) return "warning";
+  return "danger";
 }
 
+const HEALTH_LABEL: Record<HealthBucket, string> = {
+  healthy: "健康",
+  degraded: "降级",
+  unhealthy: "不健康",
+  no_data: "无数据",
+};
+
+const HEALTH_VARIANT: Record<HealthBucket, "default" | "secondary" | "destructive" | "outline"> = {
+  healthy: "default",
+  degraded: "secondary",
+  unhealthy: "destructive",
+  no_data: "outline",
+};
+
 export function DashboardPage() {
-  const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
+  const { value, setRange, params, bucket, refresh, refreshedAt } =
+    useRangeQuery("24h");
+  const rangeQuery: RangeQuery = { ...params, range: value.preset, interval: bucket };
 
-  // 以 rangeKey 为依赖在选择时快照 now，避免每次渲染都生成新区间触发反复 refetch。
-  const { from, to, interval } = useMemo(() => {
-    const r = RANGES[rangeKey];
-    const toD = new Date();
-    const fromD = new Date(toD.getTime() - r.hours * 3600 * 1000);
-    return { from: fromD.toISOString(), to: toD.toISOString(), interval: r.interval };
-  }, [rangeKey]);
-
-  const overview = useQuery({
-    queryKey: ["dashboard", "overview", { from, to }],
-    queryFn: () => getOverview({ from, to }),
+  const radar = useQuery({
+    queryKey: ["dashboard", "radar", rangeQuery],
+    queryFn: () => getRadar(rangeQuery),
     placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">工作台看板</h2>
+          <h2 className="font-heading text-lg font-semibold tracking-tight">
+            概览
+          </h2>
           <p className="text-muted-foreground text-sm">
-            运营首页只读聚合：{RANGES[rangeKey].label}
+            全平台值班雷达 · 异常发现与深链处理
           </p>
         </div>
-        <div className="flex gap-1">
-          {(Object.keys(RANGES) as RangeKey[]).map((key) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={key === rangeKey ? "default" : "outline"}
-              onClick={() => setRangeKey(key)}
-            >
-              {RANGES[key].label}
-            </Button>
-          ))}
-        </div>
+        <RangeFilter
+          value={value}
+          onChange={setRange}
+          refreshedAt={refreshedAt}
+          onRefresh={refresh}
+        />
       </div>
 
-      {overview.isError ? (
+      {radar.isError ? (
         <Alert variant="destructive">
           <AlertTitle>加载失败</AlertTitle>
-          <AlertDescription>{overview.error.message}</AlertDescription>
+          <AlertDescription>{(radar.error as Error).message}</AlertDescription>
         </Alert>
       ) : (
         <>
-          <OverviewCards data={overview.data} loading={overview.isPending} />
-          <TimeseriesCard from={from} to={to} interval={interval} />
-          <ChannelHealthCard data={overview.data} loading={overview.isPending} />
+          <PlatformBanner data={radar.data} loading={radar.isPending} />
+          <RadarCards data={radar.data} loading={radar.isPending} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ActionItemsCard data={radar.data} loading={radar.isPending} />
+            <BadChannelsCard data={radar.data} loading={radar.isPending} />
+          </div>
+          <TrendsSection range={rangeQuery} interval={bucket} />
+          <BreakdownSection range={rangeQuery} />
         </>
       )}
     </div>
   );
 }
 
-function OverviewCards({
+const PLATFORM_META: Record<
+  PlatformLevel,
+  { label: string; className: string }
+> = {
+  healthy: {
+    label: "平台正常",
+    className:
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  },
+  degraded: {
+    label: "平台降级",
+    className:
+      "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  },
+  down: {
+    label: "平台异常",
+    className:
+      "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  insufficient_data: {
+    label: "样本不足",
+    className: "border-border bg-muted/40 text-muted-foreground",
+  },
+};
+
+function PlatformBanner({
   data,
   loading,
 }: {
-  data?: DashboardOverview;
+  data?: RadarReport;
   loading: boolean;
 }) {
-  const exceptionsTotal =
-    data?.billing_exceptions.reduce((acc, e) => acc + e.total, 0) ?? 0;
+  if (loading && !data) {
+    return <Skeleton className="h-16 w-full" />;
+  }
+  if (!data) return null;
+  const status = data.platform_status;
+  const meta = PLATFORM_META[status.level] ?? PLATFORM_META.insufficient_data;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>请求数</CardTitle>
-          <CardDescription>区间内全部请求</CardDescription>
-          <CardAction>
-            <ActivityIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-20" />
-          ) : (
-            <>
-              <div className="text-2xl font-semibold tracking-tight tabular-nums">
-                {fmtInt(data.requests.total)}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-                成功 {fmtInt(data.requests.succeeded)} · 失败{" "}
-                {fmtInt(data.requests.failed)} · 取消{" "}
-                {fmtInt(data.requests.canceled)}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>成功率</CardTitle>
-          <CardDescription>终态请求占比</CardDescription>
-          <CardAction>
-            <GaugeIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-16" />
-          ) : (
-            <>
-              <div className="text-2xl font-semibold tracking-tight tabular-nums">
-                {pct(data.requests.success_rate)}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-                错误率 {pct(data.requests.error_rate)}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Token 用量</CardTitle>
-          <CardDescription>输入 + 输出</CardDescription>
-          <CardAction>
-            <CoinsIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <div className="text-2xl font-semibold tracking-tight tabular-nums">
-                {fmtInt(data.tokens.total)}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-                输入 {fmtInt(data.tokens.input)} · 输出{" "}
-                {fmtInt(data.tokens.output)}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>计费异常</CardTitle>
-          <CardDescription>区间内新增</CardDescription>
-          <CardAction>
-            <TriangleAlertIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-16" />
-          ) : (
-            <>
-              <div className="text-2xl font-semibold tracking-tight tabular-nums">
-                {fmtInt(exceptionsTotal)}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {data.billing_exceptions.length === 0
-                  ? "无异常"
-                  : data.billing_exceptions
-                      .map((e) => `${e.event_type} ${e.total}`)
-                      .join(" · ")}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>收入</CardTitle>
-          <CardDescription>客户结算扣费</CardDescription>
-          <CardAction>
-            <CircleDollarSignIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <MoneyList items={data.revenue} />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>成本</CardTitle>
-          <CardDescription>平台上游成本</CardDescription>
-          <CardAction>
-            <WalletIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <MoneyList items={data.cost} />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>毛利</CardTitle>
-          <CardDescription>收入 − 成本</CardDescription>
-          <CardAction>
-            <TrendingUpIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <MoneyList items={data.margin} />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>余额总额</CardTitle>
-          <CardDescription>各币种可用余额</CardDescription>
-          <CardAction>
-            <WalletIcon className="size-4 text-muted-foreground" />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {loading || !data ? (
-            <Skeleton className="h-8 w-24" />
-          ) : data.balance.length === 0 ? (
-            <span className="text-muted-foreground text-sm">暂无</span>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              {data.balance.map((b) => (
-                <div key={b.currency} className="tabular-nums">
-                  <span className="text-xl font-semibold tracking-tight">
-                    {trimDecimal(b.available)}
-                  </span>{" "}
-                  <span className="text-muted-foreground text-xs">
-                    {b.currency}（冻结 {trimDecimal(b.reserved)}）
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${meta.className}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="font-heading text-base font-semibold">{meta.label}</span>
+        <span className="text-sm opacity-80">{status.reason}</span>
+      </div>
+      <div className="flex items-center gap-4 text-xs tabular-nums opacity-90">
+        <span>近 15 分钟成功率 {formatPercent(status.success_rate)}</span>
+        <span>样本 {formatInt(status.terminal)}</span>
+        {status.no_channel > 0 ? (
+          <span>无可用渠道 {formatInt(status.no_channel)}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function TimeseriesCard({
-  from,
-  to,
-  interval,
+function RadarCards({
+  data,
+  loading,
 }: {
-  from: string;
-  to: string;
-  interval: TimeseriesInterval;
+  data?: RadarReport;
+  loading: boolean;
 }) {
-  const [metric, setMetric] = useState<TimeseriesMetric>("requests");
+  const r = data;
+  const ttftValue =
+    r && r.ttft.has_data ? formatLatencyMs(r.ttft.p95) : "—";
+  const marginNum = r ? Number(r.margin_usd) : 0;
 
   return (
+    <MetricGrid>
+      <MetricCard
+        label="请求量"
+        loading={loading}
+        value={formatCompact(r?.requests.total ?? 0)}
+        hint={r ? `成功 ${formatCompact(r.requests.succeeded)}` : undefined}
+        icon={<ActivityIcon className="size-3.5" />}
+        tooltip={
+          r
+            ? `成功 ${r.requests.succeeded} · 失败 ${r.requests.failed} · 取消 ${r.requests.canceled} · 超时 ${r.requests.timeout}`
+            : undefined
+        }
+      />
+      <MetricCard
+        label="成功率"
+        loading={loading}
+        value={formatPercent(r?.requests.success_rate ?? 0)}
+        intent={r ? rateIntent(r.requests.success_rate) : "default"}
+        icon={<CircleCheckIcon className="size-3.5" />}
+        tooltip={
+          r
+            ? `失败率 ${formatPercent(r.requests.error_rate)} · 超时 ${r.requests.timeout}`
+            : undefined
+        }
+      />
+      <MetricCard
+        label="P95 延迟"
+        loading={loading}
+        value={formatLatencyMs(r?.latency.p95 ?? 0)}
+        icon={<ClockIcon className="size-3.5" />}
+        tooltip={
+          r
+            ? `Avg ${formatLatencyMs(r.latency.avg)} · P50 ${formatLatencyMs(r.latency.p50)} · P90 ${formatLatencyMs(r.latency.p90)} · P99 ${formatLatencyMs(r.latency.p99)}`
+            : undefined
+        }
+      />
+      <MetricCard
+        label="P95 TTFT"
+        loading={loading}
+        value={ttftValue}
+        icon={<HourglassIcon className="size-3.5" />}
+        tooltip={
+          r && !r.ttft.has_data
+            ? "暂无首 token 时间数据（网关尚未记录响应起始时间）"
+            : r
+              ? `P50 ${formatLatencyMs(r.ttft.p50)}`
+              : undefined
+        }
+      />
+      <MetricCard
+        label="缓存命中率"
+        loading={loading}
+        value={formatPercent(r?.cache.read_rate ?? 0)}
+        icon={<DatabaseIcon className="size-3.5" />}
+        tooltip={
+          r
+            ? `写入率 ${formatPercent(r.cache.write_rate)} · 输入 token ${formatCompact(r.cache.input_tokens)}`
+            : undefined
+        }
+      />
+      <MetricCard
+        label="Token"
+        loading={loading}
+        value={formatCompact(r?.tokens.total ?? 0)}
+        icon={<CoinsIcon className="size-3.5" />}
+        tooltip={
+          r
+            ? `输入 ${formatCompact(r.tokens.input)} · 输出 ${formatCompact(r.tokens.output)}`
+            : undefined
+        }
+      />
+      <MetricCard
+        label="TPS"
+        loading={loading}
+        value={r ? formatTPS(r.tps) : "—"}
+        icon={<ZapIcon className="size-3.5" />}
+        tooltip="成功请求平均输出 token 速度"
+      />
+      <MetricCard
+        label="收入"
+        loading={loading}
+        value={formatUSD(r?.revenue_usd ?? "0")}
+        icon={<CircleDollarSignIcon className="size-3.5" />}
+        tooltip="客户结算扣费（USD）"
+      />
+      <MetricCard
+        label="成本"
+        loading={loading}
+        value={formatUSD(r?.cost_usd ?? "0")}
+        icon={<TrendingUpIcon className="size-3.5" />}
+        tooltip="平台上游成本（USD）"
+      />
+      <MetricCard
+        label="毛利"
+        loading={loading}
+        value={formatUSD(r?.margin_usd ?? "0")}
+        intent={marginNum < 0 ? "danger" : "success"}
+        icon={<BadgePercentIcon className="size-3.5" />}
+        tooltip="收入 − 成本（USD）"
+      />
+      <MetricCard
+        label="计费异常"
+        loading={loading}
+        value={formatInt(r?.billing_exceptions.total ?? 0)}
+        intent={r && r.billing_exceptions.total > 0 ? "danger" : "default"}
+        icon={<ReceiptTextIcon className="size-3.5" />}
+        hint={r ? `平台承担 ${formatUSD(r.billing_exceptions.amount)}` : undefined}
+        tooltip="区间内新增计费异常事件"
+      />
+      <MetricCard
+        label="结算积压"
+        loading={loading}
+        value={formatInt(r?.settlement_backlog.active ?? 0)}
+        intent={
+          r && r.settlement_backlog.dead > 0
+            ? "danger"
+            : r && r.settlement_backlog.active > 0
+              ? "warning"
+              : "default"
+        }
+        icon={<AlertTriangleIcon className="size-3.5" />}
+        hint={r ? `失败 ${formatInt(r.settlement_backlog.dead)}` : undefined}
+        tooltip="结算补偿任务：进行中 active / 已耗尽需人工 dead"
+      />
+    </MetricGrid>
+  );
+}
+
+function ActionItemsCard({
+  data,
+  loading,
+}: {
+  data?: RadarReport;
+  loading: boolean;
+}) {
+  return (
     <Card>
-      <CardHeader className="border-b">
-        <CardTitle>趋势</CardTitle>
-        <CardDescription>
-          按{interval === "hour" ? "小时" : "天"}聚合的时间序列
-        </CardDescription>
-        <CardAction>
-          <div className="flex gap-1">
-            {METRICS.map((m) => (
-              <Button
-                key={m.key}
-                size="sm"
-                variant={m.key === metric ? "default" : "outline"}
-                onClick={() => setMetric(m.key)}
-              >
-                {m.label}
-              </Button>
-            ))}
-          </div>
-        </CardAction>
+      <CardHeader>
+        <CardTitle className="text-base">需要处理</CardTitle>
       </CardHeader>
-      <CardContent className="pt-4">
-        <TimeseriesChart metric={metric} from={from} to={to} interval={interval} />
+      <CardContent>
+        {loading && !data ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !data || data.action_items.length === 0 ? (
+          <p className="text-muted-foreground py-6 text-center text-sm">
+            暂无需要处理的事项
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {data.action_items.map((item, i) => (
+              <li
+                key={`${item.kind}-${i}`}
+                className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+              >
+                <div className="flex items-start gap-2">
+                  <Badge
+                    variant={item.severity === "danger" ? "destructive" : "secondary"}
+                  >
+                    {item.severity === "danger" ? "紧急" : "注意"}
+                  </Badge>
+                  <div>
+                    <div className="text-sm font-medium">{item.title}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {item.detail}
+                    </div>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link to={item.deeplink}>查看</Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function TimeseriesChart({
-  metric,
-  from,
-  to,
+function BadChannelsCard({
+  data,
+  loading,
+}: {
+  data?: RadarReport;
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">异常渠道 Top</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && !data ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !data || data.bad_channels.length === 0 ? (
+          <p className="text-muted-foreground py-6 text-center text-sm">
+            区间内暂无异常渠道
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>渠道</TableHead>
+                <TableHead>健康</TableHead>
+                <TableHead className="text-right">成功率</TableHead>
+                <TableHead>最近错误</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.bad_channels.map((c) => (
+                <TableRow key={c.channel_id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>
+                    <Badge variant={HEALTH_VARIANT[c.bucket]}>
+                      {HEALTH_LABEL[c.bucket]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatPercent(c.success_rate)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground max-w-[10rem] truncate text-xs">
+                    {c.recent_error_code || "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to={`/channels?channel_id=${c.channel_id}`}>查看</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrendsSection({
+  range,
   interval,
 }: {
-  metric: TimeseriesMetric;
-  from: string;
-  to: string;
-  interval: TimeseriesInterval;
+  range: RangeQuery;
+  interval: "hour" | "day";
 }) {
-  const query = useQuery({
-    queryKey: ["dashboard", "timeseries", metric, interval, { from, to }],
-    queryFn: () =>
-      getTimeseries<RequestPoint | TokenPoint | SpendPoint>({
-        metric,
-        interval,
-        from,
-        to,
-      }),
-    placeholderData: keepPreviousData,
-  });
+  const [tab, setTab] = useState("health");
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="text-base">趋势</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            <TabsTrigger value="health">请求健康</TabsTrigger>
+            <TabsTrigger value="performance">性能</TabsTrigger>
+            <TabsTrigger value="cost">成本效率</TabsTrigger>
+          </TabsList>
+          <TabsContent value="health" className="pt-4">
+            <HealthChart range={range} interval={interval} />
+          </TabsContent>
+          <TabsContent value="performance" className="pt-4">
+            <PerformanceChart range={range} interval={interval} />
+          </TabsContent>
+          <TabsContent value="cost" className="pt-4">
+            <CostChart range={range} interval={interval} />
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
 
-  if (query.isPending) {
-    return <Skeleton className="h-[260px] w-full" />;
-  }
-  if (query.isError) {
+function ChartState({
+  pending,
+  error,
+  empty,
+}: {
+  pending: boolean;
+  error?: Error | null;
+  empty?: boolean;
+}) {
+  if (pending) return <Skeleton className="h-[260px] w-full" />;
+  if (error)
     return (
       <Alert variant="destructive">
         <AlertTitle>加载失败</AlertTitle>
-        <AlertDescription>{query.error.message}</AlertDescription>
+        <AlertDescription>{error.message}</AlertDescription>
       </Alert>
     );
-  }
-
-  const points = query.data.points;
-  if (points.length === 0) {
+  if (empty)
     return (
       <p className="text-muted-foreground py-16 text-center text-sm">
         区间内暂无数据
       </p>
     );
-  }
+  return null;
+}
 
-  if (metric === "requests") {
-    const config: ChartConfig = {
-      total: { label: "请求数", color: CHART_COLORS[0] },
-      succeeded: { label: "成功", color: CHART_COLORS[1] },
-    };
-    return (
-      <ChartContainer config={config} className="h-[260px] w-full">
-        <AreaChart data={points as RequestPoint[]} margin={{ left: 4, right: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="bucket"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            minTickGap={24}
-            tickFormatter={(v: string) => fmtBucket(v, interval)}
-          />
-          <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)} />
-            }
-          />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Area dataKey="total" type="monotone" stroke="var(--color-total)" fill="var(--color-total)" fillOpacity={0.15} />
-          <Area dataKey="succeeded" type="monotone" stroke="var(--color-succeeded)" fill="var(--color-succeeded)" fillOpacity={0.15} />
-        </AreaChart>
-      </ChartContainer>
-    );
-  }
-
-  if (metric === "tokens") {
-    const config: ChartConfig = {
-      input: { label: "输入", color: CHART_COLORS[0] },
-      output: { label: "输出", color: CHART_COLORS[1] },
-    };
-    return (
-      <ChartContainer config={config} className="h-[260px] w-full">
-        <AreaChart data={points as TokenPoint[]} margin={{ left: 4, right: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="bucket"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            minTickGap={24}
-            tickFormatter={(v: string) => fmtBucket(v, interval)}
-          />
-          <YAxis tickLine={false} axisLine={false} width={48} allowDecimals={false} />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)} />
-            }
-          />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Area dataKey="input" type="monotone" stroke="var(--color-input)" fill="var(--color-input)" fillOpacity={0.15} />
-          <Area dataKey="output" type="monotone" stroke="var(--color-output)" fill="var(--color-output)" fillOpacity={0.15} />
-        </AreaChart>
-      </ChartContainer>
-    );
-  }
-
-  // spend / cost：同形（bucket+currency+amount），按币种 pivot，多线渲染。
-  const spendPoints = points as SpendPoint[];
-  const buckets = new Map<string, Record<string, number | string>>();
-  const currencies: string[] = [];
-  for (const p of spendPoints) {
-    if (!currencies.includes(p.currency)) currencies.push(p.currency);
-    const row = buckets.get(p.bucket) ?? { bucket: p.bucket };
-    row[p.currency] = Number(p.amount);
-    buckets.set(p.bucket, row);
-  }
-  const rows = Array.from(buckets.values());
-  const config: ChartConfig = {};
-  currencies.forEach((cur, i) => {
-    config[cur] = { label: cur, color: CHART_COLORS[i % CHART_COLORS.length] };
+function HealthChart({
+  range,
+  interval,
+}: {
+  range: RangeQuery;
+  interval: "hour" | "day";
+}) {
+  const q = useQuery({
+    queryKey: ["dashboard", "ts", "requests", interval, range],
+    queryFn: () =>
+      getTimeseries<RequestPoint>({
+        metric: "requests",
+        interval,
+        from: range.from ?? "",
+        to: range.to ?? "",
+      }),
+    placeholderData: keepPreviousData,
   });
+  const points = q.data?.points ?? [];
+  const state = (
+    <ChartState pending={q.isPending} error={q.error as Error | null} empty={points.length === 0} />
+  );
+  if (q.isPending || q.isError || points.length === 0) return state;
 
+  const config: ChartConfig = {
+    total: { label: "请求数", color: CHART_COLORS[0] },
+    succeeded: { label: "成功", color: CHART_COLORS[1] },
+  };
   return (
     <ChartContainer config={config} className="h-[260px] w-full">
-      <LineChart data={rows} margin={{ left: 4, right: 8 }}>
+      <AreaChart data={points} margin={{ left: 4, right: 8 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="bucket"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          minTickGap={24}
+          tickFormatter={(v: string) => fmtBucket(v, interval)}
+        />
+        <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
+            />
+          }
+        />
+        <ChartLegend content={<ChartLegendContent />} />
+        <Area dataKey="total" type="monotone" stroke="var(--color-total)" fill="var(--color-total)" fillOpacity={0.15} />
+        <Area dataKey="succeeded" type="monotone" stroke="var(--color-succeeded)" fill="var(--color-succeeded)" fillOpacity={0.15} />
+      </AreaChart>
+    </ChartContainer>
+  );
+}
+
+function PerformanceChart({
+  range,
+  interval,
+}: {
+  range: RangeQuery;
+  interval: "hour" | "day";
+}) {
+  const q = useQuery({
+    queryKey: ["dashboard", "ts", "performance", range],
+    queryFn: () => getPerformanceSeries(range),
+    placeholderData: keepPreviousData,
+  });
+  const points = q.data?.points ?? [];
+  if (q.isPending || q.isError || points.length === 0)
+    return (
+      <ChartState pending={q.isPending} error={q.error as Error | null} empty={points.length === 0} />
+    );
+
+  const config: ChartConfig = {
+    latency_p95: { label: "P95 延迟(ms)", color: CHART_COLORS[2] },
+    ttft_p95: { label: "P95 TTFT(ms)", color: CHART_COLORS[3] },
+  };
+  return (
+    <ChartContainer config={config} className="h-[260px] w-full">
+      <LineChart data={points} margin={{ left: 4, right: 8 }}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="bucket"
@@ -549,122 +624,181 @@ function TimeseriesChart({
         <YAxis tickLine={false} axisLine={false} width={48} />
         <ChartTooltip
           content={
-            <ChartTooltipContent labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)} />
+            <ChartTooltipContent
+              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
+            />
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        {currencies.map((cur) => (
-          <Line
-            key={cur}
-            dataKey={cur}
-            type="monotone"
-            stroke={`var(--color-${cur})`}
-            strokeWidth={2}
-            dot={false}
-            connectNulls
-          />
-        ))}
+        <Line dataKey="latency_p95" type="monotone" stroke="var(--color-latency_p95)" dot={false} strokeWidth={2} />
+        <Line dataKey="ttft_p95" type="monotone" stroke="var(--color-ttft_p95)" dot={false} strokeWidth={2} />
       </LineChart>
     </ChartContainer>
   );
 }
 
-const HEALTH_LABELS: Record<string, string> = {
-  healthy: "健康",
-  degraded: "降级",
-  unhealthy: "不健康",
-  no_data: "无数据",
-};
-
-function ChannelHealthCard({
-  data,
-  loading,
+function CostChart({
+  range,
+  interval,
 }: {
-  data?: DashboardOverview;
-  loading: boolean;
+  range: RangeQuery;
+  interval: "hour" | "day";
 }) {
-  // 只展示有问题（降级/不健康）的渠道，健康/无数据归入概览计数。
-  const problem =
-    data?.channels.channels.filter(
-      (c) => c.bucket === "degraded" || c.bucket === "unhealthy",
-    ) ?? [];
+  const q = useQuery({
+    queryKey: ["dashboard", "ts", "cost", interval, range],
+    queryFn: () =>
+      getTimeseries<SpendPoint>({
+        metric: "cost",
+        interval,
+        from: range.from ?? "",
+        to: range.to ?? "",
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const usdPoints = (q.data?.points ?? [])
+    .filter((p) => p.currency === "USD")
+    .map((p) => ({ bucket: p.bucket, amount: Number(p.amount) }));
+  if (q.isPending || q.isError || usdPoints.length === 0)
+    return (
+      <ChartState pending={q.isPending} error={q.error as Error | null} empty={usdPoints.length === 0} />
+    );
 
+  const config: ChartConfig = {
+    amount: { label: "成本(USD)", color: CHART_COLORS[4] },
+  };
+  return (
+    <ChartContainer config={config} className="h-[260px] w-full">
+      <AreaChart data={usdPoints} margin={{ left: 4, right: 8 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="bucket"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          minTickGap={24}
+          tickFormatter={(v: string) => fmtBucket(v, interval)}
+        />
+        <YAxis tickLine={false} axisLine={false} width={48} />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
+            />
+          }
+        />
+        <Area dataKey="amount" type="monotone" stroke="var(--color-amount)" fill="var(--color-amount)" fillOpacity={0.15} />
+      </AreaChart>
+    </ChartContainer>
+  );
+}
+
+const BREAKDOWN_TABS: { value: BreakdownDimension; label: string }[] = [
+  { value: "route", label: "线路" },
+  { value: "channel", label: "渠道" },
+  { value: "model", label: "模型" },
+];
+
+function BreakdownSection({ range }: { range: RangeQuery }) {
+  const [dim, setDim] = useState<BreakdownDimension>("route");
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>渠道健康</CardTitle>
-        <CardDescription>
-          按区间内 attempt 成功率推导（启用 {data?.channels.enabled_count ?? "—"}）
-        </CardDescription>
-        <CardAction>
-          <CableIcon className="size-4 text-muted-foreground" />
-        </CardAction>
+        <CardTitle className="text-base">分组表现</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4 pt-4">
-        {loading || !data ? (
-          <Skeleton className="h-8 w-full" />
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">
-                {HEALTH_LABELS.healthy} {data.channels.healthy}
-              </Badge>
-              <Badge variant="outline">
-                {HEALTH_LABELS.degraded} {data.channels.degraded}
-              </Badge>
-              <Badge variant="destructive">
-                {HEALTH_LABELS.unhealthy} {data.channels.unhealthy}
-              </Badge>
-              <Badge variant="outline">
-                {HEALTH_LABELS.no_data} {data.channels.no_data}
-              </Badge>
-            </div>
-
-            {problem.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                区间内无降级或不健康渠道。
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>渠道</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead className="text-right">尝试</TableHead>
-                    <TableHead className="text-right">成功率</TableHead>
-                    <TableHead>健康</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {problem.map((c) => (
-                    <TableRow key={c.channel_id}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {c.status}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtInt(c.attempt_succeeded)}/{fmtInt(c.attempt_total)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {pct(c.success_rate)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            c.bucket === "unhealthy" ? "destructive" : "outline"
-                          }
-                        >
-                          {HEALTH_LABELS[c.bucket]}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </>
-        )}
+      <CardContent className="pt-4">
+        <Tabs value={dim} onValueChange={(v) => setDim(v as BreakdownDimension)}>
+          <TabsList>
+            {BREAKDOWN_TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {BREAKDOWN_TABS.map((t) => (
+            <TabsContent key={t.value} value={t.value} className="pt-4">
+              <BreakdownTable dimension={t.value} range={range} active={dim === t.value} />
+            </TabsContent>
+          ))}
+        </Tabs>
       </CardContent>
     </Card>
+  );
+}
+
+const BREAKDOWN_LINK: Record<BreakdownDimension, string> = {
+  route: "/routes",
+  channel: "/channels",
+  model: "/models",
+};
+
+function BreakdownTable({
+  dimension,
+  range,
+  active,
+}: {
+  dimension: BreakdownDimension;
+  range: RangeQuery;
+  active: boolean;
+}) {
+  const q = useQuery({
+    queryKey: ["dashboard", "breakdown", dimension, range],
+    queryFn: () => getBreakdown(dimension, range),
+    placeholderData: keepPreviousData,
+    enabled: active,
+  });
+
+  if (q.isPending) return <Skeleton className="h-40 w-full" />;
+  if (q.isError)
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>加载失败</AlertTitle>
+        <AlertDescription>{(q.error as Error).message}</AlertDescription>
+      </Alert>
+    );
+  const rows = q.data?.rows ?? [];
+  if (rows.length === 0)
+    return (
+      <p className="text-muted-foreground py-10 text-center text-sm">
+        区间内暂无数据
+      </p>
+    );
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{BREAKDOWN_TABS.find((t) => t.value === dimension)?.label}</TableHead>
+          <TableHead className="text-right">请求</TableHead>
+          <TableHead className="text-right">成功率</TableHead>
+          <TableHead className="text-right">操作</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row, i) => (
+          <TableRow key={`${row.label}-${i}`}>
+            <TableCell className="font-medium">{row.label}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatCompact(row.terminal)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatPercent(row.success_rate)}
+            </TableCell>
+            <TableCell className="text-right">
+              <Button asChild size="sm" variant="ghost">
+                <Link
+                  to={
+                    row.ref_id != null
+                      ? `${BREAKDOWN_LINK[dimension]}?${dimension === "route" ? "route_id" : dimension === "channel" ? "channel_id" : "model_id"}=${row.ref_id}`
+                      : BREAKDOWN_LINK[dimension]
+                  }
+                >
+                  查看
+                </Link>
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

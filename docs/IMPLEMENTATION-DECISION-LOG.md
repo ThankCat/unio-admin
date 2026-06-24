@@ -34,8 +34,9 @@
 | D-008 | 2026-06-23 | 启动 | commit/push 频率 | 分支 `mina`；**每完成 logical 批次 commit**；push/PR **全部完成后**再议（未指定则仅本地 commit） | 用户仅给分支名 | git | |
 | D-009 | 2026-06-23 | 规划 | 指标去冗余 P0/P1/P2 是否采纳？ | **全部采纳** → 写入 §1.8 + 各 §3.x 同步修订 | 用户确认「全部采纳」 | ADMIN-IA-PLAN §1.8、§3.1/3.3/3.4/3.5/3.7/3.8 | |
 | D-010 | 2026-06-23 | D-A | 计划写 `error_code='gateway_timeout'`，但代码库无此码 | 超时口径改为 **`error_code IN ('upstream_timeout','context_deadline_exceeded') OR error_code ILIKE '%timeout%'`**；统一封装 SQL helper | 真实写入路径用 `upstream_timeout`/`adapter_error`，无 `gateway_timeout` | 所有 ops 聚合 SQL | |
-| D-011 | 2026-06-23 | D-A | P95 TTFT 计划用 `response_started_at`，但 gateway 从不写该列 | **首版 TTFT 返回 null/「—」优雅降级**；同时在 gateway attempt 成功路径**补写 `response_started_at`**（低风险：仅记录首响应时间），新数据起 TTFT 生效 | 历史无数据；补写后新请求可用；不阻塞 | gateway lifecycle + ops SQL + 前端「—」 | |
+| D-011 | 2026-06-23 | D-A | P95 TTFT 计划用 `response_started_at`，但 gateway 从不写该列（`MarkRequestSucceededParams`/`MarkAttemptSucceededParams` 均无该 setter） | **首版 TTFT 优雅降级**（SQL/服务/前端保留字段，无数据时显示「—」）；**不在本次整改改动 gateway 热路径**补写，backfill 延后单独立项 | 改动流式热路径风险高，违背「一次成功」与「不做破坏性操作」红线；TTFT 为非核心指标 | ops SQL（保留 ttft 列）+ 前端「—」 | |
 | D-012 | 2026-06-23 | D-A | 线路归因无快照 | 按 §3.1 就近绑定：`COALESCE(api_keys.route_id, projects.default_route_id, 内置经济)` JOIN | 计划已定就近绑定 | 线路相关 ops SQL | |
+| D-013 | 2026-06-24 | D-A | 概览端点形态：扩展 /overview 还是新增 /radar？ | **新增** `/dashboard/radar` + `/dashboard/breakdown` + `/dashboard/timeseries/performance`；保留旧 `/overview`+`/timeseries` 兼容；新 OverviewPage 用新端点；健康/成本趋势复用既有 requests/tokens/cost 时序，仅新增 performance 时序 | D-004 允许破坏；新增更清晰，减少回归面；最小化新增时序查询 | dashboard.go、router.go、dashboard 服务 | |
 
 ---
 
