@@ -243,17 +243,16 @@ export function TtftTip({ ttft }: { ttft: TtftStats }) {
   );
 }
 
-/** 卡片副栏：典型 P50 / 尾部 P95（仅 P95 按 SLO 着色）/ 样本。 */
+/** 卡片副栏：典型 P50 / 尾部 P95（仅 P95 按 SLO 着色）。 */
 export function TtftHint({ ttft }: { ttft: TtftStats }) {
   if (!ttft.has_data) return null;
   const p95Intent = ttftIntent(ttft.p95);
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-x-1.5 tabular-nums">
+    <div className="grid grid-cols-2 gap-x-1.5 tabular-nums">
       <span className="truncate">P50 {formatLatencyMs(ttft.p50)}</span>
-      <span className={cn("truncate text-center", intentTextClass(p95Intent))}>
+      <span className={cn("truncate text-right", intentTextClass(p95Intent))}>
         P95 {formatLatencyMs(ttft.p95)}
       </span>
-      <span className="truncate text-right">样本 {formatCompact(ttft.sample)}</span>
     </div>
   );
 }

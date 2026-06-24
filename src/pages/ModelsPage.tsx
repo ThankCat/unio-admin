@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/common/TablePagination";
+import { colPct } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 type StatusTab = "all" | "enabled" | "disabled";
@@ -152,15 +153,15 @@ function OpsConsole() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>模型</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>可售</TableHead>
-                  <TableHead className="text-right">渠道</TableHead>
-                  <TableHead className="text-right">请求</TableHead>
-                  <TableHead className="text-right">成功率</TableHead>
-                  <TableHead className="text-right">P95 延迟</TableHead>
-                  <TableHead>价格</TableHead>
-                  <TableHead className="text-right">毛利率</TableHead>
+                  <TableHead className={colPct.primaryMd}>模型</TableHead>
+                  <TableHead className={colPct.badge}>状态</TableHead>
+                  <TableHead className={colPct.badge}>可售</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>渠道</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                  <TableHead className={`${colPct.percent} text-right`}>成功率</TableHead>
+                  <TableHead className={`${colPct.latency} text-right`}>P95 延迟</TableHead>
+                  <TableHead className={colPct.text}>价格</TableHead>
+                  <TableHead className={`${colPct.percent} text-right`}>毛利率</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -182,8 +183,8 @@ function OpsConsole() {
                   table.data.items.map((m) => (
                     <TableRow key={m.id} className="cursor-pointer" onClick={() => setSelected(m)}>
                       <TableCell>
-                        <div className="font-medium">{m.model_id}</div>
-                        <div className="text-muted-foreground text-xs">{m.display_name} · {m.owned_by}</div>
+                        <div className="truncate font-medium">{m.model_id}</div>
+                        <div className="text-muted-foreground truncate text-xs">{m.display_name} · {m.owned_by}</div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={m.status === "enabled" ? "default" : "outline"}>

@@ -20,9 +20,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Sheet,
-  SheetContent,
+  DetailSheetContent,
   SheetDescription,
   SheetHeader,
+  SheetMain,
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
@@ -34,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/common/TablePagination";
+import { col, colPct } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 
@@ -93,14 +95,14 @@ export function ProjectsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>项目</TableHead>
-                  <TableHead>所属用户</TableHead>
-                  <TableHead>默认线路</TableHead>
-                  <TableHead className="text-right">Key</TableHead>
-                  <TableHead className="text-right">请求</TableHead>
-                  <TableHead className="text-right">消费</TableHead>
-                  <TableHead>最近</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead className={colPct.primarySm}>项目</TableHead>
+                  <TableHead className={colPct.primarySm}>所属用户</TableHead>
+                  <TableHead className={colPct.textMd}>默认线路</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>Key</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                  <TableHead className={`${colPct.money} text-right`}>消费</TableHead>
+                  <TableHead className={colPct.time}>最近</TableHead>
+                  <TableHead className={`${colPct.action} text-right`}>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -149,7 +151,7 @@ function ProjectDetailSheet({ project, range, onClose }: { project: ProjectOpsRo
   });
   return (
     <Sheet open={project != null} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-xl">
+      <DetailSheetContent size="md">
         {project ? (
           <>
             <SheetHeader>
@@ -158,46 +160,48 @@ function ProjectDetailSheet({ project, range, onClose }: { project: ProjectOpsRo
                 {project.user_email} · 默认线路 {project.default_route_name || "由 Key 决定"}
               </SheetDescription>
             </SheetHeader>
-            <div className="flex flex-col gap-3 px-4 pb-4">
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="Key" value={`${project.key_enabled}/${project.key_total}`} />
-                <Stat label="区间请求" value={formatCompact(project.request_total)} />
-                <Stat label="区间消费" value={formatUSD(project.consumption_usd)} />
-              </div>
-              <Button asChild size="sm" className="w-fit">
-                <Link to={`/projects/${project.id}/api-keys`}>管理 API Key</Link>
-              </Button>
-              <div className="text-muted-foreground text-xs">本项目 API Key</div>
-              {keys.isPending ? (
-                <Skeleton className="h-32 w-full" />
-              ) : keys.data && keys.data.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Key</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead className="text-right">请求</TableHead>
-                      <TableHead className="text-right">消费</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {keys.data.map((k) => (
-                      <TableRow key={k.id}>
-                        <TableCell className="text-sm">{k.name}</TableCell>
-                        <TableCell><Badge variant={k.status === "active" ? "default" : "outline"}>{k.status}</Badge></TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{formatCompact(k.request_total)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{formatUSD(k.consumption_usd)}</TableCell>
+            <SheetMain>
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <Stat label="Key" value={`${project.key_enabled}/${project.key_total}`} />
+                  <Stat label="区间请求" value={formatCompact(project.request_total)} />
+                  <Stat label="区间消费" value={formatUSD(project.consumption_usd)} />
+                </div>
+                <Button asChild size="sm" className="w-fit">
+                  <Link to={`/projects/${project.id}/api-keys`}>管理 API Key</Link>
+                </Button>
+                <div className="text-muted-foreground text-xs">本项目 API Key</div>
+                {keys.isPending ? (
+                  <Skeleton className="h-32 w-full" />
+                ) : keys.data && keys.data.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className={col.primary}>Key</TableHead>
+                        <TableHead className={col.status}>状态</TableHead>
+                        <TableHead className={`${col.num} text-right`}>请求</TableHead>
+                        <TableHead className={`${col.money} text-right`}>消费</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-muted-foreground py-6 text-center text-sm">无 API Key</p>
-              )}
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {keys.data.map((k) => (
+                        <TableRow key={k.id}>
+                          <TableCell className="text-sm">{k.name}</TableCell>
+                          <TableCell><Badge variant={k.status === "active" ? "default" : "outline"}>{k.status}</Badge></TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">{formatCompact(k.request_total)}</TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">{formatUSD(k.consumption_usd)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground py-6 text-center text-sm">无 API Key</p>
+                )}
+              </div>
+            </SheetMain>
           </>
         ) : null}
-      </SheetContent>
+      </DetailSheetContent>
     </Sheet>
   );
 }

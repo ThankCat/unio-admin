@@ -183,11 +183,27 @@ export interface BreakdownRow {
   terminal: number;
   succeeded: number;
   success_rate: number;
+  tokens: number;
+  /** 区间内该分组上游成本合计（USD 十进制字符串） */
+  cost_usd: string;
+  /** 区间内该分组 P95 完成延迟（毫秒） */
+  latency_p95: number;
 }
 
 export interface BreakdownResult {
   dimension: BreakdownDimension;
   rows: BreakdownRow[];
+}
+
+export interface ErrorGroup {
+  code: string;
+  total: number;
+  /** total / 区间内失败总数，[0,1] 比例 */
+  share: number;
+}
+
+export interface TopErrorsResult {
+  errors: ErrorGroup[];
 }
 
 export interface PerformancePoint {
@@ -227,6 +243,16 @@ export async function getPerformanceSeries(
 ): Promise<PerformanceSeries> {
   const res = await api.get<{ data: PerformanceSeries }>(
     "/admin/v1/dashboard/timeseries/performance",
+    { params },
+  );
+  return res.data.data;
+}
+
+export async function getTopErrors(
+  params: RangeQuery,
+): Promise<TopErrorsResult> {
+  const res = await api.get<{ data: TopErrorsResult }>(
+    "/admin/v1/dashboard/errors",
     { params },
   );
   return res.data.data;

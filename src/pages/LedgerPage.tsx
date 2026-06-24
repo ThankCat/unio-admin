@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/empty";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
+import { col } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 
@@ -111,12 +112,12 @@ function EntriesPanel() {
           <Table className={query.isFetching ? "opacity-60" : undefined}>
             <TableHeader>
               <TableRow>
-                <TableHead>用户</TableHead>
-                <TableHead>类型</TableHead>
-                <TableHead className="text-right">金额</TableHead>
-                <TableHead className="text-right">余额</TableHead>
-                <TableHead>原因</TableHead>
-                <TableHead>时间</TableHead>
+                <TableHead className={col.numSm}>用户</TableHead>
+                <TableHead className={col.badge}>类型</TableHead>
+                <TableHead className={`${col.money} text-right`}>金额</TableHead>
+                <TableHead className={`${col.money} text-right`}>余额</TableHead>
+                <TableHead className={col.primary}>原因</TableHead>
+                <TableHead className={col.datetime}>时间</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -203,12 +204,12 @@ function ExceptionsPanel() {
           <Table className={query.isFetching ? "opacity-60" : undefined}>
             <TableHeader>
               <TableRow>
-                <TableHead>用户</TableHead>
-                <TableHead>类型</TableHead>
-                <TableHead className="text-right">平台承担</TableHead>
-                <TableHead>原因码</TableHead>
-                <TableHead>原因</TableHead>
-                <TableHead>时间</TableHead>
+                <TableHead className={col.numSm}>用户</TableHead>
+                <TableHead className={col.badge}>类型</TableHead>
+                <TableHead className={`${col.money} text-right`}>平台承担</TableHead>
+                <TableHead className={col.text}>原因码</TableHead>
+                <TableHead className={col.primary}>原因</TableHead>
+                <TableHead className={col.datetime}>时间</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

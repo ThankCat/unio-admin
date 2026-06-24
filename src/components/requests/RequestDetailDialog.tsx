@@ -58,6 +58,11 @@ function DetailBody({ requestId }: { requestId: string }) {
   const query = useQuery({
     queryKey: ["request-detail", requestId, includeInternal],
     queryFn: () => getRequest(requestId, includeInternal),
+    // 请求仍在进行中/待处理时每 5s 轮询，终态后停止（避免打开历史请求时无谓查询）。
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === "running" || s === "pending" ? 5000 : false;
+    },
   });
 
   return (

@@ -19,12 +19,15 @@ import {
   formatPercent,
   formatRelativeTime,
 } from "@/lib/format";
+import { col } from "@/lib/table-columns";
 import {
   Sheet,
-  SheetContent,
+  DetailSheetContent,
   SheetDescription,
   SheetHeader,
+  SheetMain,
   SheetTitle,
+  SheetToolbar,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -67,11 +70,11 @@ export function ChannelDetailSheet({
   const open = channelId != null;
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-2xl">
+      <DetailSheetContent size="lg">
         {channelId != null ? (
           <ChannelDetailBody channelId={channelId} range={range} />
         ) : null}
-      </SheetContent>
+      </DetailSheetContent>
     </Sheet>
   );
 }
@@ -113,7 +116,7 @@ function ChannelDetailBody({
         </SheetDescription>
       </SheetHeader>
 
-      <div className="flex flex-wrap gap-2 px-4">
+      <SheetToolbar>
         <Button size="sm" variant="outline" disabled={!channel} onClick={() => setEditOpen(true)}>
           编辑
         </Button>
@@ -126,10 +129,10 @@ function ChannelDetailBody({
         <Button size="sm" variant="outline" disabled={!channel} onClick={() => setCredOpen(true)}>
           轮换凭据
         </Button>
-      </div>
+      </SheetToolbar>
 
-      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 overflow-hidden px-4 pb-4">
-        <TabsList className="flex-wrap">
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-3 shrink-0 self-start flex-wrap">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="performance">性能</TabsTrigger>
           <TabsTrigger value="errors">错误</TabsTrigger>
@@ -139,24 +142,24 @@ function ChannelDetailBody({
           <TabsTrigger value="audit">审计</TabsTrigger>
         </TabsList>
 
-        <div className="mt-3 overflow-y-auto">
-          <TabsContent value="overview">
+        <SheetMain className="pt-3">
+          <TabsContent value="overview" className="mt-0">
             <OverviewTab channelId={channelId} range={range} />
           </TabsContent>
-          <TabsContent value="performance">
+          <TabsContent value="performance" className="mt-0">
             <PerformanceTab channelId={channelId} range={range} />
           </TabsContent>
-          <TabsContent value="errors">
+          <TabsContent value="errors" className="mt-0">
             <ErrorsTab channelId={channelId} range={range} />
           </TabsContent>
-          <TabsContent value="models">
+          <TabsContent value="models" className="mt-0">
             <ModelsTab channelId={channelId} range={range} onManage={() => setModelsOpen(true)} />
           </TabsContent>
-          <TabsContent value="routes">
+          <TabsContent value="routes" className="mt-0">
             <RoutesTab channelId={channelId} />
           </TabsContent>
-          <TabsContent value="credential">
-            <div className="flex flex-col gap-3 py-2 text-sm">
+          <TabsContent value="credential" className="mt-0">
+            <div className="flex flex-col gap-3 text-sm">
               <p className="text-muted-foreground">
                 凭据只写不回显。最近更新：{channel ? formatRelativeTime(channel.updated_at) : "—"}。
               </p>
@@ -167,10 +170,10 @@ function ChannelDetailBody({
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="audit">
+          <TabsContent value="audit" className="mt-0">
             <p className="text-muted-foreground py-6 text-center text-sm">审计日志（P1）</p>
           </TabsContent>
-        </div>
+        </SheetMain>
       </Tabs>
 
       {channel ? (
@@ -284,11 +287,11 @@ function ErrorsTab({ channelId, range }: { channelId: number; range: RangeQuery 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>时间</TableHead>
-            <TableHead>模型</TableHead>
-            <TableHead>错误码</TableHead>
-            <TableHead className="text-right">HTTP</TableHead>
-            <TableHead>请求</TableHead>
+            <TableHead className={col.time}>时间</TableHead>
+            <TableHead className={col.textLg}>模型</TableHead>
+            <TableHead className={col.text}>错误码</TableHead>
+            <TableHead className={`${col.numSm} text-right`}>HTTP</TableHead>
+            <TableHead className={col.mono}>请求</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -360,12 +363,12 @@ function ModelsTab({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>模型</TableHead>
-              <TableHead>上游名</TableHead>
-              <TableHead className="text-right">尝试</TableHead>
-              <TableHead className="text-right">成功率</TableHead>
-              <TableHead className="text-right">P95</TableHead>
-              <TableHead>价格</TableHead>
+              <TableHead className={col.primaryLg}>模型</TableHead>
+              <TableHead className={col.textLg}>上游名</TableHead>
+              <TableHead className={`${col.num} text-right`}>尝试</TableHead>
+              <TableHead className={`${col.percent} text-right`}>成功率</TableHead>
+              <TableHead className={`${col.latency} text-right`}>P95</TableHead>
+              <TableHead className={col.price}>价格</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -409,10 +412,10 @@ function RoutesTab({ channelId }: { channelId: number }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>线路</TableHead>
-          <TableHead>策略</TableHead>
-          <TableHead>池</TableHead>
-          <TableHead>状态</TableHead>
+          <TableHead className={col.primary}>线路</TableHead>
+          <TableHead className={col.text}>策略</TableHead>
+          <TableHead className={col.text}>池</TableHead>
+          <TableHead className={col.status}>状态</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

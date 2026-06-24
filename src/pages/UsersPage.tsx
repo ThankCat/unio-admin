@@ -22,10 +22,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Sheet,
-  SheetContent,
+  DetailSheetContent,
   SheetDescription,
   SheetHeader,
+  SheetMain,
   SheetTitle,
+  SheetToolbar,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,6 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/common/TablePagination";
+import { col, colPct } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 
@@ -97,15 +100,15 @@ export function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>用户</TableHead>
-                  <TableHead className="text-right">余额</TableHead>
-                  <TableHead className="text-right">可用</TableHead>
-                  <TableHead className="text-right">项目</TableHead>
-                  <TableHead className="text-right">Key</TableHead>
-                  <TableHead className="text-right">请求</TableHead>
-                  <TableHead className="text-right">消费</TableHead>
-                  <TableHead>最近</TableHead>
-                  <TableHead>风险</TableHead>
+                  <TableHead className={colPct.primary}>用户</TableHead>
+                  <TableHead className={`${colPct.money} text-right`}>余额</TableHead>
+                  <TableHead className={`${colPct.money} text-right`}>可用</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>项目</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>Key</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                  <TableHead className={`${colPct.money} text-right`}>消费</TableHead>
+                  <TableHead className={colPct.time}>最近</TableHead>
+                  <TableHead className={colPct.badge}>风险</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -119,8 +122,8 @@ export function UsersPage() {
                   table.data.items.map((u) => (
                     <TableRow key={u.id} className="cursor-pointer" onClick={() => setSelected(u)}>
                       <TableCell>
-                        <div className="font-medium">{u.email}</div>
-                        <div className="text-muted-foreground text-xs">{u.display_name}</div>
+                        <div className="truncate font-medium">{u.email}</div>
+                        <div className="text-muted-foreground truncate text-xs">{u.display_name}</div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSD(u.balance_usd)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSD(u.available_usd)}</TableCell>
@@ -148,9 +151,9 @@ export function UsersPage() {
 function UserDetailSheet({ user, range, onClose }: { user: UserOpsRow | null; range: ReturnType<typeof useRangeQuery>["params"] & { range?: string }; onClose: () => void }) {
   return (
     <Sheet open={user != null} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-xl">
+      <DetailSheetContent size="md">
         {user ? <Body row={user} range={range} /> : null}
-      </SheetContent>
+      </DetailSheetContent>
     </Sheet>
   );
 }
@@ -176,18 +179,18 @@ function Body({ row, range }: { row: UserOpsRow; range: { from?: string; to?: st
         <SheetTitle>{row.email}</SheetTitle>
         <SheetDescription>{row.display_name} · 项目 {row.project_count} · Key {row.key_total}</SheetDescription>
       </SheetHeader>
-      <div className="flex flex-wrap gap-2 px-4">
+      <SheetToolbar>
         <UserBalanceDialog user={userObj}>
           <Button size="sm">调额</Button>
         </UserBalanceDialog>
-      </div>
-      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 overflow-hidden px-4 pb-4">
-        <TabsList>
+      </SheetToolbar>
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-3 shrink-0 self-start">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="keys">API Keys</TabsTrigger>
         </TabsList>
-        <div className="mt-3 overflow-y-auto">
-          <TabsContent value="overview">
+        <SheetMain className="pt-3">
+          <TabsContent value="overview" className="mt-0">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="余额" value={formatUSD(d?.balance_usd ?? row.balance_usd)} />
               <Stat label="可用余额" value={formatUSD(d?.available_usd ?? row.available_usd)} />
@@ -197,17 +200,17 @@ function Body({ row, range }: { row: UserOpsRow; range: { from?: string; to?: st
               <Stat label="区间消费" value={formatUSD(d?.consumption_usd ?? "0")} />
             </div>
           </TabsContent>
-          <TabsContent value="keys">
+          <TabsContent value="keys" className="mt-0">
             {keys.isPending ? (
               <Skeleton className="h-32 w-full" />
             ) : keys.data && keys.data.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Key</TableHead>
-                    <TableHead>项目</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead className="text-right">已用</TableHead>
+                    <TableHead className={col.primary}>Key</TableHead>
+                    <TableHead className={col.textLg}>项目</TableHead>
+                    <TableHead className={col.status}>状态</TableHead>
+                    <TableHead className={`${col.money} text-right`}>已用</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -225,7 +228,7 @@ function Body({ row, range }: { row: UserOpsRow; range: { from?: string; to?: st
               <p className="text-muted-foreground py-10 text-center text-sm">无 API Key</p>
             )}
           </TabsContent>
-        </div>
+        </SheetMain>
       </Tabs>
     </>
   );

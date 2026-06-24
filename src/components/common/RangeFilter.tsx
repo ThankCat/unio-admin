@@ -11,14 +11,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -33,7 +25,6 @@ import {
 } from "@/components/ui/select";
 
 // 固定范围下拉 + 自定义区间 + 「最后刷新」+ 刷新按钮。
-// 「全部」点击须确认弹窗（§3.1.10：大库慢查询保护）。
 export function RangeFilter({
   value,
   onChange,
@@ -47,18 +38,12 @@ export function RangeFilter({
   onRefresh?: () => void;
   className?: string;
 }) {
-  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>();
 
   function handlePreset(next: string) {
     if (!next) return;
-    const preset = next as Exclude<RangePreset, "custom">;
-    if (preset === "all") {
-      setConfirmAllOpen(true);
-      return;
-    }
-    onChange({ preset });
+    onChange({ preset: next as Exclude<RangePreset, "custom"> });
   }
 
   function applyCustom() {
@@ -144,30 +129,6 @@ export function RangeFilter({
           </Button>
         </div>
       ) : null}
-
-      <Dialog open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>查询全部时间范围？</DialogTitle>
-            <DialogDescription>
-              「全部」会扫描全库历史数据，在数据量大时查询较慢。确认继续？
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmAllOpen(false)}>
-              取消
-            </Button>
-            <Button
-              onClick={() => {
-                onChange({ preset: "all" });
-                setConfirmAllOpen(false);
-              }}
-            >
-              确认查询全部
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

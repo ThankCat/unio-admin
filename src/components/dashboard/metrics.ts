@@ -8,6 +8,8 @@ import type { MetricIntent } from "@/components/common/MetricCard";
 // 概览雷达卡片的纯计算 / 阈值逻辑。与组件分离，避免 fast-refresh 失效（仅组件文件应导出组件）。
 
 // ---- 请求成功率 ----
+// SLO 参考线（与 rateIntent 阈值一致）
+export const SUCCESS_RATE_SLO = 0.95;
 
 export function rateIntent(rate: number): "success" | "warning" | "danger" {
   if (rate >= 0.95) return "success";

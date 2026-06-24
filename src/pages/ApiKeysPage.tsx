@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { colPct } from "@/lib/table-columns";
 
 // 把 ops 行映射成最小 ApiKey，喂给复用的限额对话框（仅用到 id/spend_limit）。
 function toApiKey(row: ApiKeyOpsRow): ApiKey {
@@ -121,15 +122,15 @@ export function ApiKeysPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Key</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>线路</TableHead>
-                <TableHead className="text-right">限额</TableHead>
-                <TableHead className="text-right">已用</TableHead>
-                <TableHead className="text-right">请求</TableHead>
-                <TableHead className="text-right">消费</TableHead>
-                <TableHead>最近</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead className={colPct.primaryMd}>Key</TableHead>
+                <TableHead className={colPct.badge}>状态</TableHead>
+                <TableHead className={colPct.textMd}>线路</TableHead>
+                <TableHead className={`${colPct.money} text-right`}>限额</TableHead>
+                <TableHead className={`${colPct.money} text-right`}>已用</TableHead>
+                <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                <TableHead className={`${colPct.money} text-right`}>消费</TableHead>
+                <TableHead className={colPct.timeSm}>最近</TableHead>
+                <TableHead className={`${colPct.action} text-right`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,8 +142,8 @@ export function ApiKeysPage() {
                 table.data.map((k) => (
                   <TableRow key={k.id}>
                     <TableCell>
-                      <div className="font-medium">{k.name}</div>
-                      <div className="text-muted-foreground font-mono text-xs">{k.key_prefix}…</div>
+                      <div className="truncate font-medium">{k.name}</div>
+                      <div className="text-muted-foreground truncate font-mono text-xs">{k.key_prefix}…</div>
                     </TableCell>
                     <TableCell><Badge variant={k.status === "active" ? "default" : "outline"}>{k.status}</Badge></TableCell>
                     <TableCell className="text-xs">{k.route_name || "项目默认 → 内置经济"}</TableCell>

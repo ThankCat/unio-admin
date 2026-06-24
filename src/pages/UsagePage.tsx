@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/empty";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
+import { col } from "@/lib/table-columns";
 
 const COLS = 7;
 const PAGE_SIZE = 20;
@@ -102,13 +103,13 @@ export function UsagePage() {
             <Table className={query.isFetching ? "opacity-60" : undefined}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>请求 ID</TableHead>
-                  <TableHead>模型</TableHead>
-                  <TableHead className="text-right">输入</TableHead>
-                  <TableHead className="text-right">输出</TableHead>
-                  <TableHead>来源</TableHead>
-                  <TableHead>用户</TableHead>
-                  <TableHead>创建时间</TableHead>
+                  <TableHead className={col.mono}>请求 ID</TableHead>
+                  <TableHead className={col.primaryLg}>模型</TableHead>
+                  <TableHead className={`${col.num} text-right`}>输入</TableHead>
+                  <TableHead className={`${col.num} text-right`}>输出</TableHead>
+                  <TableHead className={col.text}>来源</TableHead>
+                  <TableHead className={col.numSm}>用户</TableHead>
+                  <TableHead className={col.datetime}>创建时间</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

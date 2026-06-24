@@ -16,6 +16,7 @@ import {
 import { listSyncJobs, type SyncJob } from "@/lib/api/capability";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime, trimDecimal } from "@/lib/format";
+import { col } from "@/lib/table-columns";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -186,13 +187,13 @@ function RecoveryTab() {
           <Table className={query.isFetching ? "opacity-60" : undefined}>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">ID</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>用户 / 渠道</TableHead>
-                <TableHead>重试</TableHead>
-                <TableHead>冻结金额</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead className="w-16 text-right">操作</TableHead>
+                <TableHead className={col.idMd}>ID</TableHead>
+                <TableHead className={col.status}>状态</TableHead>
+                <TableHead className={col.pair}>用户 / 渠道</TableHead>
+                <TableHead className={col.numSm}>重试</TableHead>
+                <TableHead className={col.money}>冻结金额</TableHead>
+                <TableHead className={col.datetime}>创建时间</TableHead>
+                <TableHead className={`${col.action} text-right`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -313,11 +314,11 @@ function SyncJobsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">ID</TableHead>
-              <TableHead>来源</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead>结束时间</TableHead>
+              <TableHead className={col.idMd}>ID</TableHead>
+              <TableHead className={col.primary}>来源</TableHead>
+              <TableHead className={col.badge}>状态</TableHead>
+              <TableHead className={col.datetime}>创建时间</TableHead>
+              <TableHead className={col.datetime}>结束时间</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -439,12 +440,12 @@ function ChannelHealthTab() {
           <Table className={query.isFetching ? "opacity-60" : undefined}>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">ID</TableHead>
-                <TableHead>渠道</TableHead>
-                <TableHead>健康</TableHead>
-                <TableHead className="text-right">成功率</TableHead>
-                <TableHead className="text-right">尝试（成功/失败）</TableHead>
-                <TableHead>最近尝试</TableHead>
+                <TableHead className={col.idMd}>ID</TableHead>
+                <TableHead className={col.primary}>渠道</TableHead>
+                <TableHead className={col.badge}>健康</TableHead>
+                <TableHead className={`${col.percent} text-right`}>成功率</TableHead>
+                <TableHead className={`${col.textLg} text-right`}>尝试（成功/失败）</TableHead>
+                <TableHead className={col.time}>最近尝试</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

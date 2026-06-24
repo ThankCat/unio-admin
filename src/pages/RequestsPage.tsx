@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ActivityIcon, EyeIcon, SearchIcon } from "lucide-react";
+import { ActivityIcon, EyeIcon, RefreshCwIcon, SearchIcon } from "lucide-react";
 import { listRequests } from "@/lib/api/requests";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime } from "@/lib/format";
@@ -41,6 +41,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
 import { RequestStatusBadge } from "@/components/requests/RequestStatusBadge";
 import { RequestDetailDialog } from "@/components/requests/RequestDetailDialog";
+import { col } from "@/lib/table-columns";
 
 const COLS = 7;
 const PAGE_SIZE = 20;
@@ -70,7 +71,12 @@ export function RequestsPage() {
     );
   };
 
-  const [status, setStatus] = useState("all");
+  const statusParam = searchParams.get("status");
+  const [status, setStatus] = useState(
+    statusParam && STATUS_OPTIONS.some((o) => o.value === statusParam)
+      ? statusParam
+      : "all",
+  );
   const [modelInput, setModelInput] = useState("");
   const [userIdInput, setUserIdInput] = useState("");
   const [page, setPage] = useState(1);
@@ -89,6 +95,14 @@ export function RequestsPage() {
         userId,
       }),
     placeholderData: keepPreviousData,
+    // 列表里只要还有进行中/待处理的请求就每 5s 轮询，使其自动翻成最终态；
+    // 全部终态后停止轮询（页面失焦时 React Query 默认也不轮询），避免无谓查询压力。
+    refetchInterval: (q) =>
+      q.state.data?.items.some(
+        (r) => r.status === "running" || r.status === "pending",
+      )
+        ? 5000
+        : false,
   });
 
   const items = query.data?.items ?? [];
@@ -153,6 +167,17 @@ export function RequestsPage() {
             inputMode="numeric"
             className="w-32"
           />
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ml-auto"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+            aria-label="刷新"
+          >
+            <RefreshCwIcon className={query.isFetching ? "animate-spin" : undefined} />
+          </Button>
         </div>
 
         {query.isError ? (
@@ -165,13 +190,13 @@ export function RequestsPage() {
             <Table className={query.isFetching ? "opacity-60" : undefined}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>请求 ID</TableHead>
-                  <TableHead>模型</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>流式</TableHead>
-                  <TableHead>用户</TableHead>
-                  <TableHead>创建时间</TableHead>
-                  <TableHead className="w-16 text-right">操作</TableHead>
+                  <TableHead className={col.mono}>请求 ID</TableHead>
+                  <TableHead className={col.primaryLg}>模型</TableHead>
+                  <TableHead className={col.badge}>状态</TableHead>
+                  <TableHead className={col.bool}>流式</TableHead>
+                  <TableHead className={col.numSm}>用户</TableHead>
+                  <TableHead className={col.datetime}>创建时间</TableHead>
+                  <TableHead className={`${col.action} text-right`}>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

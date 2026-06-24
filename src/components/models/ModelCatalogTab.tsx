@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/empty";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
+import { col } from "@/lib/table-columns";
 import { AdoptFromCatalogDialog } from "@/components/models/AdoptFromCatalogDialog";
 import { ModelCatalogSyncDialog } from "@/components/models/ModelCatalogSyncDialog";
 
@@ -95,12 +96,12 @@ export function ModelCatalogTab() {
               <Table className={query.isFetching ? "opacity-60" : undefined}>
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead>模型</TableHead>
-                    <TableHead className="hidden w-28 sm:table-cell">厂商</TableHead>
-                    <TableHead className="text-right">能力</TableHead>
-                    <TableHead className="text-right">已采纳</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead className="w-24 text-right">操作</TableHead>
+                    <TableHead className={col.primaryLg}>模型</TableHead>
+                    <TableHead className={`hidden ${col.vendor} sm:table-cell`}>厂商</TableHead>
+                    <TableHead className={`${col.numSm} text-right`}>能力</TableHead>
+                    <TableHead className={`${col.numSm} text-right`}>已采纳</TableHead>
+                    <TableHead className={col.status}>状态</TableHead>
+                    <TableHead className={`${col.actionLg} text-right`}>操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

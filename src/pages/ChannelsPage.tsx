@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/common/TablePagination";
+import { colPct } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 type StatusTab = "all" | "enabled" | "disabled";
@@ -137,16 +138,16 @@ export function ChannelsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>渠道</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>健康</TableHead>
-                  <TableHead className="text-right">请求</TableHead>
-                  <TableHead className="text-right">成功率</TableHead>
-                  <TableHead className="text-right">P95 延迟</TableHead>
-                  <TableHead className="text-right">超时</TableHead>
-                  <TableHead className="text-right">模型</TableHead>
-                  <TableHead>最近错误</TableHead>
-                  <TableHead>最近成功</TableHead>
+                  <TableHead className={colPct.primarySm}>渠道</TableHead>
+                  <TableHead className={colPct.badge}>状态</TableHead>
+                  <TableHead className={colPct.badge}>健康</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                  <TableHead className={`${colPct.percent} text-right`}>成功率</TableHead>
+                  <TableHead className={`${colPct.latency} text-right`}>P95 延迟</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>超时</TableHead>
+                  <TableHead className={`${colPct.numSm} text-right`}>模型</TableHead>
+                  <TableHead className={colPct.error}>最近错误</TableHead>
+                  <TableHead className={colPct.timeSm}>最近成功</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -186,8 +187,8 @@ function ChannelRow({ c, onOpen }: { c: ChannelOpsRow; onOpen: () => void }) {
   return (
     <TableRow className="cursor-pointer" onClick={onOpen}>
       <TableCell>
-        <div className="font-medium">{c.name}</div>
-        <div className="text-muted-foreground max-w-[16rem] truncate text-xs">
+        <div className="truncate font-medium">{c.name}</div>
+        <div className="text-muted-foreground truncate text-xs">
           {c.provider_name} · {c.base_url}
         </div>
       </TableCell>

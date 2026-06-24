@@ -17,6 +17,7 @@ import {
   formatPercent,
   formatTPS,
 } from "@/lib/format";
+import { col } from "@/lib/table-columns";
 import { HEALTH_LABEL, HEALTH_VARIANT, healthBucketOf } from "@/components/channels/health";
 import { ModelFormDialog } from "@/components/models/ModelFormDialog";
 import { ModelStatusToggle } from "@/components/models/ModelStatusToggle";
@@ -24,10 +25,12 @@ import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDi
 import { DeleteModelDialog } from "@/components/models/DeleteModelDialog";
 import {
   Sheet,
-  SheetContent,
+  DetailSheetContent,
   SheetDescription,
   SheetHeader,
+  SheetMain,
   SheetTitle,
+  SheetToolbar,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -83,9 +86,9 @@ export function ModelDetailSheet({
 }) {
   return (
     <Sheet open={model != null} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-2xl">
+      <DetailSheetContent size="lg">
         {model ? <Body row={model} range={range} /> : null}
-      </SheetContent>
+      </DetailSheetContent>
     </Sheet>
   );
 }
@@ -115,7 +118,7 @@ function Body({ row, range }: { row: ModelOpsRow; range: RangeQuery }) {
         </SheetDescription>
       </SheetHeader>
 
-      <div className="flex flex-wrap items-center gap-2 px-4">
+      <SheetToolbar>
         <Button size="sm" variant="outline" disabled={!model} onClick={() => setEditOpen(true)}>编辑</Button>
         {model ? (
           <>
@@ -128,29 +131,29 @@ function Body({ row, range }: { row: ModelOpsRow; range: RangeQuery }) {
             </DeleteModelDialog>
           </>
         ) : null}
-      </div>
+      </SheetToolbar>
 
-      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 overflow-hidden px-4 pb-4">
-        <TabsList className="flex-wrap">
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-3 shrink-0 self-start flex-wrap">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="channels">渠道</TabsTrigger>
           <TabsTrigger value="performance">性能</TabsTrigger>
           <TabsTrigger value="requests">请求</TabsTrigger>
         </TabsList>
-        <div className="mt-3 overflow-y-auto">
-          <TabsContent value="overview">
+        <SheetMain className="pt-3">
+          <TabsContent value="overview" className="mt-0">
             <OverviewTab id={row.id} range={range} marginUsd={row.margin_usd} revenueUsd={row.revenue_usd} marginRate={row.margin_rate} />
           </TabsContent>
-          <TabsContent value="channels">
+          <TabsContent value="channels" className="mt-0">
             <ChannelsTab id={row.id} range={range} />
           </TabsContent>
-          <TabsContent value="performance">
+          <TabsContent value="performance" className="mt-0">
             <PerformanceTab id={row.id} range={range} />
           </TabsContent>
-          <TabsContent value="requests">
+          <TabsContent value="requests" className="mt-0">
             <RequestsTab id={row.id} range={range} />
           </TabsContent>
-        </div>
+        </SheetMain>
       </Tabs>
 
       {model ? <ModelFormDialog model={model} open={editOpen} onOpenChange={setEditOpen} /> : null}
@@ -208,13 +211,13 @@ function ChannelsTab({ id, range }: { id: number; range: RangeQuery }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>渠道</TableHead>
-          <TableHead>健康</TableHead>
-          <TableHead className="text-right">尝试</TableHead>
-          <TableHead className="text-right">成功率</TableHead>
-          <TableHead className="text-right">P95</TableHead>
-          <TableHead>价格</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className={col.primary}>渠道</TableHead>
+          <TableHead className={col.badge}>健康</TableHead>
+          <TableHead className={`${col.num} text-right`}>尝试</TableHead>
+          <TableHead className={`${col.percent} text-right`}>成功率</TableHead>
+          <TableHead className={`${col.latency} text-right`}>P95</TableHead>
+          <TableHead className={col.price}>价格</TableHead>
+          <TableHead className={`${col.action} text-right`}>操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -300,10 +303,10 @@ function RequestsTab({ id, range }: { id: number; range: RangeQuery }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>时间</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead className="text-right">延迟</TableHead>
-            <TableHead>请求</TableHead>
+            <TableHead className={col.time}>时间</TableHead>
+            <TableHead className={col.badge}>状态</TableHead>
+            <TableHead className={`${col.latency} text-right`}>延迟</TableHead>
+            <TableHead className={col.mono}>请求</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

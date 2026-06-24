@@ -45,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { col } from "@/lib/table-columns";
 
 export function CapabilityDictionaryTab() {
   const queryClient = useQueryClient();
@@ -159,13 +160,13 @@ export function CapabilityDictionaryTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>key</TableHead>
-                  <TableHead>协议归属</TableHead>
-                  <TableHead>domain</TableHead>
-                  <TableHead>展示名</TableHead>
+                  <TableHead className={col.primaryLg}>key</TableHead>
+                  <TableHead className={col.text}>协议归属</TableHead>
+                  <TableHead className={col.text}>domain</TableHead>
+                  <TableHead className={col.textLg}>展示名</TableHead>
                   <TableHead className="hidden md:table-cell">描述</TableHead>
-                  <TableHead className="w-20 text-right">排序</TableHead>
-                  <TableHead className="w-24 text-right">操作</TableHead>
+                  <TableHead className={`${col.numSm} text-right`}>排序</TableHead>
+                  <TableHead className={`${col.actionLg} text-right`}>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
+import { cn } from "@/lib/utils";
 import {
   ActivityIcon,
   CircleDollarSignIcon,
@@ -25,6 +27,7 @@ import {
   getPerformanceSeries,
   getRadar,
   getTimeseries,
+  getTopErrors,
   type BreakdownDimension,
   type HealthBucket,
   type PlatformLevel,
@@ -33,7 +36,17 @@ import {
   type RequestPoint,
   type SpendPoint,
   type TimeseriesInterval,
+  type TokenPoint,
 } from "@/lib/api/dashboard";
+import {
+  compareIntentHigherIsBetter,
+  compareIntentLowerIsBetter,
+  formatRatePointChange,
+  formatRelativeChange,
+  relativeChange,
+  type CompareIntent,
+} from "@/lib/compare";
+import { previousPeriodParams } from "@/lib/range";
 import { useRangeQuery } from "@/hooks/useRangeQuery";
 import { RangeFilter } from "@/components/common/RangeFilter";
 import { MetricCard, MetricGrid } from "@/components/common/MetricCard";
@@ -52,10 +65,15 @@ import {
 import { TokenHint, TokenTip } from "@/components/dashboard/TokenTip";
 import { TpsHint, TpsTip } from "@/components/dashboard/TpsTip";
 import {
+  latencyIntent,
+  LATENCY_WARN_MS,
   profitIntent,
   rateIntent,
   settlementAnomalyCount,
   settlementIntent,
+  SUCCESS_RATE_SLO,
+  ttftIntent,
+  TTFT_WARN_MS,
 } from "@/components/dashboard/metrics";
 import {
   formatCompact,
@@ -79,6 +97,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { col } from "@/lib/table-columns";
 import {
   ChartContainer,
   ChartLegend,
@@ -161,12 +180,13 @@ export function DashboardPage() {
         <>
           <PlatformBanner data={radar.data} loading={radar.isPending} />
           <RadarCards data={radar.data} loading={radar.isPending} />
+          <TrendsSection range={rangeQuery} interval={bucket} />
+          <BreakdownSection range={rangeQuery} />
+          <TopErrorsSection range={rangeQuery} />
           <div className="grid gap-4 lg:grid-cols-2">
             <ActionItemsCard data={radar.data} loading={radar.isPending} />
             <BadChannelsCard data={radar.data} loading={radar.isPending} />
           </div>
-          <TrendsSection range={rangeQuery} interval={bucket} />
-          <BreakdownSection range={rangeQuery} />
         </>
       )}
     </div>
@@ -390,11 +410,11 @@ function BadChannelsCard({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>渠道</TableHead>
-                <TableHead>健康</TableHead>
-                <TableHead className="text-right">成功率</TableHead>
-                <TableHead>最近错误</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead className={col.primary}>渠道</TableHead>
+                <TableHead className={col.badge}>健康</TableHead>
+                <TableHead className={`${col.percent} text-right`}>成功率</TableHead>
+                <TableHead className={col.error}>最近错误</TableHead>
+                <TableHead className={`${col.action} text-right`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -427,6 +447,15 @@ function BadChannelsCard({
   );
 }
 
+const TREND_TABS = [
+  { value: "stability", label: "稳定性", desc: "请求量与成功率随时间的变化" },
+  { value: "performance", label: "性能", desc: "延迟、首字时间与吞吐随时间的变化" },
+  { value: "profit", label: "盈利", desc: "营收、成本与毛利随时间的变化" },
+  { value: "usage", label: "用量", desc: "输入 / 输出 token 随时间的变化" },
+] as const;
+
+type TrendTab = (typeof TREND_TABS)[number]["value"];
+
 function TrendsSection({
   range,
   interval,
@@ -434,31 +463,155 @@ function TrendsSection({
   range: RangeQuery;
   interval: TimeseriesInterval;
 }) {
-  const [tab, setTab] = useState("health");
+  const [tab, setTab] = useState<TrendTab>("stability");
+  const active = TREND_TABS.find((t) => t.value === tab) ?? TREND_TABS[0];
+
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle className="text-base">趋势</CardTitle>
+        <p className="text-muted-foreground text-sm">{active.desc}</p>
       </CardHeader>
       <CardContent className="pt-4">
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TrendTab)}>
           <TabsList>
-            <TabsTrigger value="health">请求健康</TabsTrigger>
-            <TabsTrigger value="performance">性能</TabsTrigger>
-            <TabsTrigger value="cost">成本效率</TabsTrigger>
+            {TREND_TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value="health" className="pt-4">
-            <HealthChart range={range} interval={interval} />
+          <TabsContent value="stability" className="pt-4">
+            <StabilityChart range={range} interval={interval} />
           </TabsContent>
           <TabsContent value="performance" className="pt-4">
             <PerformanceChart range={range} interval={interval} />
           </TabsContent>
-          <TabsContent value="cost" className="pt-4">
-            <CostChart range={range} interval={interval} />
+          <TabsContent value="profit" className="pt-4">
+            <ProfitChart range={range} interval={interval} />
+          </TabsContent>
+          <TabsContent value="usage" className="pt-4">
+            <UsageChart range={range} interval={interval} />
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
+  );
+}
+
+// 趋势图上方「人话摘要」：一眼给出关键读数，不依赖看图能力。
+type StatIntent = "default" | "success" | "warning" | "danger";
+
+function statIntentClass(intent: StatIntent | undefined): string {
+  switch (intent) {
+    case "success":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "warning":
+      return "text-amber-600 dark:text-amber-400";
+    case "danger":
+      return "text-destructive";
+    default:
+      return "text-foreground";
+  }
+}
+
+function StatStrip({
+  items,
+}: {
+  items: {
+    label: string;
+    value: string;
+    intent?: StatIntent;
+    compare?: string;
+    compareIntent?: CompareIntent;
+  }[];
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1.5">
+      {items.map((it) => (
+        <div key={it.label} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs">
+          <span className="text-muted-foreground">{it.label}</span>
+          <span
+            className={cn(
+              "font-medium tabular-nums",
+              statIntentClass(it.intent),
+            )}
+          >
+            {it.value}
+          </span>
+          {it.compare != null && (
+            <span
+              className={cn(
+                "text-[10px] tabular-nums",
+                statIntentClass(it.compareIntent),
+              )}
+            >
+              环比 {it.compare}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function usePreviousRange(range: RangeQuery): RangeQuery | null {
+  const { from, to, interval, range: rangePreset } = range;
+  return useMemo(() => {
+    const prev = previousPeriodParams({ from, to });
+    if (!prev) return null;
+    return { from: prev.from, to: prev.to, interval, range: rangePreset };
+  }, [from, to, interval, rangePreset]);
+}
+
+function SloReferenceLine({
+  yAxisId,
+  y,
+  label,
+}: {
+  yAxisId?: string;
+  y: number;
+  label: string;
+}) {
+  return (
+    <ReferenceLine
+      yAxisId={yAxisId}
+      y={y}
+      stroke="hsl(var(--muted-foreground))"
+      strokeDasharray="5 4"
+      strokeOpacity={0.55}
+      ifOverflow="extendDomain"
+      label={{
+        value: label,
+        position: "insideTopRight",
+        fill: "hsl(var(--muted-foreground))",
+        fontSize: 10,
+      }}
+    />
+  );
+}
+
+// 趋势图 tooltip 单行：色块 + 名称 + 按该系列单位格式化的数值。
+function TipRow({
+  color,
+  label,
+  value,
+}: {
+  color?: string;
+  label: ReactNode;
+  value: string;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2">
+      <span
+        className="h-2 w-2 shrink-0 rounded-[2px]"
+        style={{ backgroundColor: color }}
+      />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground ml-auto font-mono tabular-nums">
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -488,13 +641,15 @@ function ChartState({
   return null;
 }
 
-function HealthChart({
+// 稳定性：请求量（面积，左轴）+ 成功率（折线，右轴 0–100%）。回答「稳不稳 / 几点掉的」。
+function StabilityChart({
   range,
   interval,
 }: {
   range: RangeQuery;
   interval: TimeseriesInterval;
 }) {
+  const prevRange = usePreviousRange(range);
   const q = useQuery({
     queryKey: ["dashboard", "ts", "requests", interval, range],
     queryFn: () =>
@@ -506,44 +661,169 @@ function HealthChart({
       }),
     placeholderData: keepPreviousData,
   });
-  const points = q.data?.points ?? [];
-  const state = (
-    <ChartState pending={q.isPending} error={q.error as Error | null} empty={points.length === 0} />
-  );
-  if (q.isPending || q.isError || points.length === 0) return state;
+  const prevQ = useQuery({
+    queryKey: ["dashboard", "ts", "requests", interval, "prev", prevRange],
+    queryFn: () =>
+      getTimeseries<RequestPoint>({
+        metric: "requests",
+        interval,
+        from: prevRange!.from ?? "",
+        to: prevRange!.to ?? "",
+      }),
+    enabled: !!prevRange,
+    placeholderData: keepPreviousData,
+  });
+  const raw = q.data?.points ?? [];
+  if (q.isPending || q.isError || raw.length === 0)
+    return (
+      <ChartState
+        pending={q.isPending}
+        error={q.error as Error | null}
+        empty={raw.length === 0}
+      />
+    );
+
+  const points = raw.map((p) => ({
+    bucket: p.bucket,
+    total: p.total,
+    rate: p.total > 0 ? p.succeeded / p.total : null,
+  }));
+  const totalReq = raw.reduce((s, p) => s + p.total, 0);
+  const totalOk = raw.reduce((s, p) => s + p.succeeded, 0);
+  const avgRate = totalReq > 0 ? totalOk / totalReq : 0;
+  const prevRaw = prevQ.data?.points ?? [];
+  const prevTotalReq = prevRaw.reduce((s, p) => s + p.total, 0);
+  const prevTotalOk = prevRaw.reduce((s, p) => s + p.succeeded, 0);
+  const prevAvgRate =
+    prevTotalReq > 0 ? prevTotalOk / prevTotalReq : null;
+  const reqChange = relativeChange(totalReq, prevTotalReq);
+  let worst: { rate: number; bucket: string } | null = null;
+  for (const p of raw) {
+    if (p.total <= 0) continue;
+    const r = p.succeeded / p.total;
+    if (worst === null || r < worst.rate) worst = { rate: r, bucket: p.bucket };
+  }
 
   const config: ChartConfig = {
     total: { label: "请求数", color: CHART_COLORS[0] },
-    succeeded: { label: "成功", color: CHART_COLORS[1] },
+    rate: { label: "成功率", color: CHART_COLORS[1] },
   };
   return (
-    <ChartContainer config={config} className="h-[260px] w-full">
-      <AreaChart data={points} margin={{ left: 4, right: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="bucket"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          minTickGap={24}
-          tickFormatter={(v: string) => fmtBucket(v, interval)}
-        />
-        <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
-            />
-          }
-        />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Area dataKey="total" type="monotone" stroke="var(--color-total)" fill="var(--color-total)" fillOpacity={0.15} />
-        <Area dataKey="succeeded" type="monotone" stroke="var(--color-succeeded)" fill="var(--color-succeeded)" fillOpacity={0.15} />
-      </AreaChart>
-    </ChartContainer>
+    <>
+      <StatStrip
+        items={[
+          {
+            label: "总请求",
+            value: formatInt(totalReq),
+            compare: prevQ.isSuccess
+              ? formatRelativeChange(reqChange)
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(reqChange),
+          },
+          {
+            label: "平均成功率",
+            value: formatPercent(avgRate),
+            intent: rateIntent(avgRate),
+            compare:
+              prevQ.isSuccess && prevAvgRate != null
+                ? formatRatePointChange(avgRate, prevAvgRate)
+                : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              prevAvgRate != null ? avgRate - prevAvgRate : null,
+            ),
+          },
+          ...(worst
+            ? [
+                {
+                  label: "最低成功率",
+                  value: `${formatPercent(worst.rate)}（${fmtBucket(worst.bucket, interval)}）`,
+                  intent: rateIntent(worst.rate),
+                },
+              ]
+            : []),
+        ]}
+      />
+      <ChartContainer config={config} className="h-[260px] w-full">
+        <ComposedChart data={points} margin={{ left: 4, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="bucket"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) => fmtBucket(v, interval)}
+          />
+          <YAxis
+            yAxisId="vol"
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            allowDecimals={false}
+          />
+          <YAxis
+            yAxisId="rate"
+            orientation="right"
+            domain={[0, 1]}
+            tickLine={false}
+            axisLine={false}
+            width={44}
+            tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) =>
+                  fmtBucket(String(p?.[0]?.payload.bucket), interval)
+                }
+                formatter={(value, _name, item) => {
+                  if (value == null) return null;
+                  const key = String(item.dataKey ?? "");
+                  const text =
+                    key === "rate"
+                      ? formatPercent(Number(value))
+                      : formatInt(Number(value));
+                  return (
+                    <TipRow
+                      color={item.color}
+                      label={config[key]?.label}
+                      value={text}
+                    />
+                  );
+                }}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <SloReferenceLine
+            yAxisId="rate"
+            y={SUCCESS_RATE_SLO}
+            label="SLO 95%"
+          />
+          <Area
+            yAxisId="vol"
+            dataKey="total"
+            type="monotone"
+            stroke="var(--color-total)"
+            fill="var(--color-total)"
+            fillOpacity={0.15}
+          />
+          <Line
+            yAxisId="rate"
+            dataKey="rate"
+            type="monotone"
+            stroke="var(--color-rate)"
+            dot={false}
+            strokeWidth={2}
+            connectNulls
+          />
+        </ComposedChart>
+      </ChartContainer>
+    </>
   );
 }
 
+// 性能：P95 延迟 / P95 TTFT（左轴 ms）+ 平均 TPS（右轴 t/s）。回答「快不快 / 吞吐够不够」。
 function PerformanceChart({
   range,
   interval,
@@ -551,57 +831,222 @@ function PerformanceChart({
   range: RangeQuery;
   interval: TimeseriesInterval;
 }) {
+  const prevRange = usePreviousRange(range);
   const q = useQuery({
     queryKey: ["dashboard", "ts", "performance", range],
     queryFn: () => getPerformanceSeries(range),
     placeholderData: keepPreviousData,
   });
+  const prevQ = useQuery({
+    queryKey: ["dashboard", "ts", "performance", "prev", prevRange],
+    queryFn: () => getPerformanceSeries(prevRange!),
+    enabled: !!prevRange,
+    placeholderData: keepPreviousData,
+  });
   const points = q.data?.points ?? [];
   if (q.isPending || q.isError || points.length === 0)
     return (
-      <ChartState pending={q.isPending} error={q.error as Error | null} empty={points.length === 0} />
+      <ChartState
+        pending={q.isPending}
+        error={q.error as Error | null}
+        empty={points.length === 0}
+      />
     );
 
+  let latPeak: { v: number; bucket: string } | null = null;
+  let ttftPeak: { v: number; bucket: string } | null = null;
+  let tpsSum = 0;
+  let tpsCount = 0;
+  for (const p of points) {
+    if (latPeak === null || p.latency_p95 > latPeak.v)
+      latPeak = { v: p.latency_p95, bucket: p.bucket };
+    if (ttftPeak === null || p.ttft_p95 > ttftPeak.v)
+      ttftPeak = { v: p.ttft_p95, bucket: p.bucket };
+    if (p.tps > 0) {
+      tpsSum += p.tps;
+      tpsCount += 1;
+    }
+  }
+  const avgTps = tpsCount > 0 ? tpsSum / tpsCount : 0;
+
+  const prevPoints = prevQ.data?.points ?? [];
+  let prevLatPeak = 0;
+  let prevTtftPeak = 0;
+  let prevTpsSum = 0;
+  let prevTpsCount = 0;
+  for (const p of prevPoints) {
+    if (p.latency_p95 > prevLatPeak) prevLatPeak = p.latency_p95;
+    if (p.ttft_p95 > prevTtftPeak) prevTtftPeak = p.ttft_p95;
+    if (p.tps > 0) {
+      prevTpsSum += p.tps;
+      prevTpsCount += 1;
+    }
+  }
+  const prevAvgTps = prevTpsCount > 0 ? prevTpsSum / prevTpsCount : 0;
+
   const config: ChartConfig = {
-    latency_p95: { label: "P95 延迟(ms)", color: CHART_COLORS[2] },
-    ttft_p95: { label: "P95 TTFT(ms)", color: CHART_COLORS[3] },
+    latency_p95: { label: "P95 延迟", color: CHART_COLORS[2] },
+    ttft_p95: { label: "P95 TTFT", color: CHART_COLORS[3] },
+    tps: { label: "TPS", color: CHART_COLORS[0] },
   };
   return (
-    <ChartContainer config={config} className="h-[260px] w-full">
-      <LineChart data={points} margin={{ left: 4, right: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="bucket"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          minTickGap={24}
-          tickFormatter={(v: string) => fmtBucket(v, interval)}
-        />
-        <YAxis tickLine={false} axisLine={false} width={48} />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
-            />
-          }
-        />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Line dataKey="latency_p95" type="monotone" stroke="var(--color-latency_p95)" dot={false} strokeWidth={2} />
-        <Line dataKey="ttft_p95" type="monotone" stroke="var(--color-ttft_p95)" dot={false} strokeWidth={2} />
-      </LineChart>
-    </ChartContainer>
+    <>
+      <StatStrip
+        items={[
+          ...(latPeak
+            ? [
+                {
+                  label: "P95 延迟峰值",
+                  value: `${formatLatencyMs(latPeak.v)}（${fmtBucket(latPeak.bucket, interval)}）`,
+                  intent: latencyIntent(latPeak.v) as StatIntent,
+                  compare: prevQ.isSuccess
+                    ? formatRelativeChange(
+                        relativeChange(latPeak.v, prevLatPeak),
+                      )
+                    : undefined,
+                  compareIntent: compareIntentLowerIsBetter(
+                    relativeChange(latPeak.v, prevLatPeak),
+                  ),
+                },
+              ]
+            : []),
+          ...(ttftPeak
+            ? [
+                {
+                  label: "P95 TTFT 峰值",
+                  value: `${formatLatencyMs(ttftPeak.v)}（${fmtBucket(ttftPeak.bucket, interval)}）`,
+                  intent: ttftIntent(ttftPeak.v) as StatIntent,
+                  compare: prevQ.isSuccess
+                    ? formatRelativeChange(
+                        relativeChange(ttftPeak.v, prevTtftPeak),
+                      )
+                    : undefined,
+                  compareIntent: compareIntentLowerIsBetter(
+                    relativeChange(ttftPeak.v, prevTtftPeak),
+                  ),
+                },
+              ]
+            : []),
+          {
+            label: "平均 TPS",
+            value: formatTPS(avgTps),
+            compare: prevQ.isSuccess
+              ? formatRelativeChange(relativeChange(avgTps, prevAvgTps))
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(avgTps, prevAvgTps),
+            ),
+          },
+        ]}
+      />
+      <ChartContainer config={config} className="h-[260px] w-full">
+        <ComposedChart data={points} margin={{ left: 4, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="bucket"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) => fmtBucket(v, interval)}
+          />
+          <YAxis
+            yAxisId="ms"
+            tickLine={false}
+            axisLine={false}
+            width={52}
+            tickFormatter={(v: number) => formatLatencyMs(v)}
+          />
+          <YAxis
+            yAxisId="tps"
+            orientation="right"
+            tickLine={false}
+            axisLine={false}
+            width={44}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) =>
+                  fmtBucket(String(p?.[0]?.payload.bucket), interval)
+                }
+                formatter={(value, _name, item) => {
+                  if (value == null) return null;
+                  const key = String(item.dataKey ?? "");
+                  const text =
+                    key === "tps"
+                      ? formatTPS(Number(value))
+                      : formatLatencyMs(Number(value));
+                  return (
+                    <TipRow
+                      color={item.color}
+                      label={config[key]?.label}
+                      value={text}
+                    />
+                  );
+                }}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <SloReferenceLine
+            yAxisId="ms"
+            y={LATENCY_WARN_MS}
+            label="延迟 15s"
+          />
+          <SloReferenceLine yAxisId="ms" y={TTFT_WARN_MS} label="TTFT 5s" />
+          <Line
+            yAxisId="ms"
+            dataKey="latency_p95"
+            type="monotone"
+            stroke="var(--color-latency_p95)"
+            dot={false}
+            strokeWidth={2}
+          />
+          <Line
+            yAxisId="ms"
+            dataKey="ttft_p95"
+            type="monotone"
+            stroke="var(--color-ttft_p95)"
+            dot={false}
+            strokeWidth={2}
+          />
+          <Line
+            yAxisId="tps"
+            dataKey="tps"
+            type="monotone"
+            stroke="var(--color-tps)"
+            dot={false}
+            strokeWidth={2}
+            strokeDasharray="4 3"
+          />
+        </ComposedChart>
+      </ChartContainer>
+    </>
   );
 }
 
-function CostChart({
+// 盈利：营收 vs 成本（折线）+ 毛利（面积）。回答「赚不赚钱 / 毛利走势」。
+function ProfitChart({
   range,
   interval,
 }: {
   range: RangeQuery;
   interval: TimeseriesInterval;
 }) {
-  const q = useQuery({
+  const prevRange = usePreviousRange(range);
+  const revenueQ = useQuery({
+    queryKey: ["dashboard", "ts", "spend", interval, range],
+    queryFn: () =>
+      getTimeseries<SpendPoint>({
+        metric: "spend",
+        interval,
+        from: range.from ?? "",
+        to: range.to ?? "",
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const costQ = useQuery({
     queryKey: ["dashboard", "ts", "cost", interval, range],
     queryFn: () =>
       getTimeseries<SpendPoint>({
@@ -612,40 +1057,342 @@ function CostChart({
       }),
     placeholderData: keepPreviousData,
   });
-  const usdPoints = (q.data?.points ?? [])
-    .filter((p) => p.currency === "USD")
-    .map((p) => ({ bucket: p.bucket, amount: Number(p.amount) }));
-  if (q.isPending || q.isError || usdPoints.length === 0)
+  const prevRevenueQ = useQuery({
+    queryKey: ["dashboard", "ts", "spend", interval, "prev", prevRange],
+    queryFn: () =>
+      getTimeseries<SpendPoint>({
+        metric: "spend",
+        interval,
+        from: prevRange!.from ?? "",
+        to: prevRange!.to ?? "",
+      }),
+    enabled: !!prevRange,
+    placeholderData: keepPreviousData,
+  });
+  const prevCostQ = useQuery({
+    queryKey: ["dashboard", "ts", "cost", interval, "prev", prevRange],
+    queryFn: () =>
+      getTimeseries<SpendPoint>({
+        metric: "cost",
+        interval,
+        from: prevRange!.from ?? "",
+        to: prevRange!.to ?? "",
+      }),
+    enabled: !!prevRange,
+    placeholderData: keepPreviousData,
+  });
+
+  const pending = revenueQ.isPending || costQ.isPending;
+  const error = (revenueQ.error ?? costQ.error) as Error | null;
+  const points = mergeProfitPoints(
+    revenueQ.data?.points ?? [],
+    costQ.data?.points ?? [],
+  );
+  if (pending || error || points.length === 0)
     return (
-      <ChartState pending={q.isPending} error={q.error as Error | null} empty={usdPoints.length === 0} />
+      <ChartState pending={pending} error={error} empty={points.length === 0} />
     );
 
+  const revTotal = points.reduce((s, p) => s + p.revenue, 0);
+  const costTotal = points.reduce((s, p) => s + p.cost, 0);
+  const marginTotal = revTotal - costTotal;
+  const marginRate = revTotal > 0 ? marginTotal / revTotal : null;
+
+  const prevPoints = mergeProfitPoints(
+    prevRevenueQ.data?.points ?? [],
+    prevCostQ.data?.points ?? [],
+  );
+  const prevRevTotal = prevPoints.reduce((s, p) => s + p.revenue, 0);
+  const prevCostTotal = prevPoints.reduce((s, p) => s + p.cost, 0);
+  const prevMarginTotal = prevRevTotal - prevCostTotal;
+  const prevReady = prevRevenueQ.isSuccess && prevCostQ.isSuccess;
+
   const config: ChartConfig = {
-    amount: { label: "成本(USD)", color: CHART_COLORS[4] },
+    revenue: { label: "营收", color: CHART_COLORS[1] },
+    cost: { label: "成本", color: CHART_COLORS[3] },
+    margin: { label: "毛利", color: CHART_COLORS[0] },
   };
   return (
-    <ChartContainer config={config} className="h-[260px] w-full">
-      <AreaChart data={usdPoints} margin={{ left: 4, right: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="bucket"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          minTickGap={24}
-          tickFormatter={(v: string) => fmtBucket(v, interval)}
-        />
-        <YAxis tickLine={false} axisLine={false} width={48} />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={(_, p) => fmtBucket(String(p?.[0]?.payload.bucket), interval)}
-            />
-          }
-        />
-        <Area dataKey="amount" type="monotone" stroke="var(--color-amount)" fill="var(--color-amount)" fillOpacity={0.15} />
-      </AreaChart>
-    </ChartContainer>
+    <>
+      <StatStrip
+        items={[
+          {
+            label: "营收合计",
+            value: formatUSD(revTotal),
+            compare: prevReady
+              ? formatRelativeChange(relativeChange(revTotal, prevRevTotal))
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(revTotal, prevRevTotal),
+            ),
+          },
+          {
+            label: "成本合计",
+            value: formatUSD(costTotal),
+            compare: prevReady
+              ? formatRelativeChange(relativeChange(costTotal, prevCostTotal))
+              : undefined,
+            compareIntent: compareIntentLowerIsBetter(
+              relativeChange(costTotal, prevCostTotal),
+            ),
+          },
+          {
+            label: "毛利合计",
+            value:
+              marginRate != null
+                ? `${formatUSD(marginTotal)}（${formatPercent(marginRate)}）`
+                : formatUSD(marginTotal),
+            intent: profitIntent(marginTotal) as StatIntent,
+            compare: prevReady
+              ? formatRelativeChange(
+                  relativeChange(marginTotal, prevMarginTotal),
+                )
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(marginTotal, prevMarginTotal),
+            ),
+          },
+        ]}
+      />
+      <ChartContainer config={config} className="h-[260px] w-full">
+        <ComposedChart data={points} margin={{ left: 4, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="bucket"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) => fmtBucket(v, interval)}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={52}
+            tickFormatter={(v: number) => formatUSD(v)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) =>
+                  fmtBucket(String(p?.[0]?.payload.bucket), interval)
+                }
+                formatter={(value, _name, item) => {
+                  if (value == null) return null;
+                  const key = String(item.dataKey ?? "");
+                  return (
+                    <TipRow
+                      color={item.color}
+                      label={config[key]?.label}
+                      value={formatUSD(Number(value))}
+                    />
+                  );
+                }}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <SloReferenceLine y={0} label="盈亏平衡" />
+          <Area
+            dataKey="margin"
+            type="monotone"
+            stroke="var(--color-margin)"
+            fill="var(--color-margin)"
+            fillOpacity={0.12}
+          />
+          <Line
+            dataKey="revenue"
+            type="monotone"
+            stroke="var(--color-revenue)"
+            dot={false}
+            strokeWidth={2}
+          />
+          <Line
+            dataKey="cost"
+            type="monotone"
+            stroke="var(--color-cost)"
+            dot={false}
+            strokeWidth={2}
+          />
+        </ComposedChart>
+      </ChartContainer>
+    </>
+  );
+}
+
+// 合并营收（spend）与成本（cost）的 USD 时序，按 bucket 对齐，缺失侧按 0 计。
+function mergeProfitPoints(
+  revenue: SpendPoint[],
+  cost: SpendPoint[],
+): { bucket: string; revenue: number; cost: number; margin: number }[] {
+  const map = new Map<string, { bucket: string; revenue: number; cost: number }>();
+  for (const p of revenue) {
+    if (p.currency !== "USD") continue;
+    map.set(p.bucket, { bucket: p.bucket, revenue: Number(p.amount), cost: 0 });
+  }
+  for (const p of cost) {
+    if (p.currency !== "USD") continue;
+    const e = map.get(p.bucket) ?? { bucket: p.bucket, revenue: 0, cost: 0 };
+    e.cost = Number(p.amount);
+    map.set(p.bucket, e);
+  }
+  return [...map.values()]
+    .sort(
+      (a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime(),
+    )
+    .map((e) => ({ ...e, margin: e.revenue - e.cost }));
+}
+
+// 用量：输入 / 输出 token 堆叠面积。回答「用得多不多」。
+function UsageChart({
+  range,
+  interval,
+}: {
+  range: RangeQuery;
+  interval: TimeseriesInterval;
+}) {
+  const prevRange = usePreviousRange(range);
+  const q = useQuery({
+    queryKey: ["dashboard", "ts", "tokens", interval, range],
+    queryFn: () =>
+      getTimeseries<TokenPoint>({
+        metric: "tokens",
+        interval,
+        from: range.from ?? "",
+        to: range.to ?? "",
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const prevQ = useQuery({
+    queryKey: ["dashboard", "ts", "tokens", interval, "prev", prevRange],
+    queryFn: () =>
+      getTimeseries<TokenPoint>({
+        metric: "tokens",
+        interval,
+        from: prevRange!.from ?? "",
+        to: prevRange!.to ?? "",
+      }),
+    enabled: !!prevRange,
+    placeholderData: keepPreviousData,
+  });
+  const points = q.data?.points ?? [];
+  if (q.isPending || q.isError || points.length === 0)
+    return (
+      <ChartState
+        pending={q.isPending}
+        error={q.error as Error | null}
+        empty={points.length === 0}
+      />
+    );
+
+  const inputTotal = points.reduce((s, p) => s + p.input, 0);
+  const outputTotal = points.reduce((s, p) => s + p.output, 0);
+  const tokenTotal = inputTotal + outputTotal;
+
+  const prevPoints = prevQ.data?.points ?? [];
+  const prevInputTotal = prevPoints.reduce((s, p) => s + p.input, 0);
+  const prevOutputTotal = prevPoints.reduce((s, p) => s + p.output, 0);
+  const prevTokenTotal = prevInputTotal + prevOutputTotal;
+
+  const config: ChartConfig = {
+    input: { label: "输入 token", color: CHART_COLORS[0] },
+    output: { label: "输出 token", color: CHART_COLORS[4] },
+  };
+  return (
+    <>
+      <StatStrip
+        items={[
+          {
+            label: "输入 token",
+            value: formatInt(inputTotal),
+            compare: prevQ.isSuccess
+              ? formatRelativeChange(relativeChange(inputTotal, prevInputTotal))
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(inputTotal, prevInputTotal),
+            ),
+          },
+          {
+            label: "输出 token",
+            value: formatInt(outputTotal),
+            compare: prevQ.isSuccess
+              ? formatRelativeChange(
+                  relativeChange(outputTotal, prevOutputTotal),
+                )
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(outputTotal, prevOutputTotal),
+            ),
+          },
+          {
+            label: "合计",
+            value: formatInt(tokenTotal),
+            compare: prevQ.isSuccess
+              ? formatRelativeChange(relativeChange(tokenTotal, prevTokenTotal))
+              : undefined,
+            compareIntent: compareIntentHigherIsBetter(
+              relativeChange(tokenTotal, prevTokenTotal),
+            ),
+          },
+        ]}
+      />
+      <ChartContainer config={config} className="h-[260px] w-full">
+        <AreaChart data={points} margin={{ left: 4, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="bucket"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) => fmtBucket(v, interval)}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={48}
+            tickFormatter={(v: number) => formatCompact(v)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) =>
+                  fmtBucket(String(p?.[0]?.payload.bucket), interval)
+                }
+                formatter={(value, _name, item) => {
+                  if (value == null) return null;
+                  const key = String(item.dataKey ?? "");
+                  return (
+                    <TipRow
+                      color={item.color}
+                      label={config[key]?.label}
+                      value={formatInt(Number(value))}
+                    />
+                  );
+                }}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Area
+            dataKey="input"
+            type="monotone"
+            stackId="tok"
+            stroke="var(--color-input)"
+            fill="var(--color-input)"
+            fillOpacity={0.18}
+          />
+          <Area
+            dataKey="output"
+            type="monotone"
+            stackId="tok"
+            stroke="var(--color-output)"
+            fill="var(--color-output)"
+            fillOpacity={0.18}
+          />
+        </AreaChart>
+      </ChartContainer>
+    </>
   );
 }
 
@@ -724,10 +1471,15 @@ function BreakdownTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>{BREAKDOWN_TABS.find((t) => t.value === dimension)?.label}</TableHead>
-          <TableHead className="text-right">请求</TableHead>
-          <TableHead className="text-right">成功率</TableHead>
-          <TableHead className="text-right">操作</TableHead>
+          <TableHead className={col.primary}>
+            {BREAKDOWN_TABS.find((t) => t.value === dimension)?.label}
+          </TableHead>
+          <TableHead className={`${col.num} text-right`}>请求</TableHead>
+          <TableHead className={`${col.percent} text-right`}>成功率</TableHead>
+          <TableHead className={`${col.num} text-right`}>Token</TableHead>
+          <TableHead className={`${col.money} text-right`}>成本</TableHead>
+          <TableHead className={`${col.latency} text-right`}>P95 延迟</TableHead>
+          <TableHead className={`${col.action} text-right`}>操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -737,8 +1489,22 @@ function BreakdownTable({
             <TableCell className="text-right tabular-nums">
               {formatCompact(row.terminal)}
             </TableCell>
-            <TableCell className="text-right tabular-nums">
+            <TableCell
+              className={cn(
+                "text-right tabular-nums",
+                statIntentClass(rateIntent(row.success_rate)),
+              )}
+            >
               {formatPercent(row.success_rate)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatCompact(row.tokens)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatUSD(row.cost_usd)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {row.latency_p95 > 0 ? formatLatencyMs(row.latency_p95) : "—"}
             </TableCell>
             <TableCell className="text-right">
               <Button asChild size="sm" variant="ghost">
@@ -757,5 +1523,105 @@ function BreakdownTable({
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+// 常见错误码 → 人话标签；未命中回退原始 code。与后端 BaseSafeRequestLogErrorMessage 口径一致。
+const ERROR_CODE_LABEL: Record<string, string> = {
+  unknown: "未知错误",
+  no_available_channel: "无可用渠道",
+  routing_no_available_channel: "无可用渠道",
+  model_not_found: "模型不存在",
+  model_not_available: "模型暂不可用",
+  insufficient_balance: "余额不足",
+  ledger_insufficient_balance: "余额不足",
+  context_deadline_exceeded: "上游超时",
+  gateway_stream_usage_missing: "流式用量缺失",
+  gateway_chat_settlement_failed: "结算失败",
+  gateway_chat_authorization_failed: "授权失败",
+};
+
+function errorCodeLabel(code: string): string {
+  if (ERROR_CODE_LABEL[code]) return ERROR_CODE_LABEL[code];
+  if (/timeout/i.test(code)) return "上游超时";
+  return code;
+}
+
+// 失败原因 Top：区间内失败请求按错误码聚合，回答「为什么失败」。深链到失败请求列表。
+function TopErrorsSection({ range }: { range: RangeQuery }) {
+  const q = useQuery({
+    queryKey: ["dashboard", "errors", range],
+    queryFn: () => getTopErrors(range),
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  });
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="text-base">失败原因 Top</CardTitle>
+        <p className="text-muted-foreground text-sm">
+          区间内失败请求按错误码聚合，点「查看」进入失败请求列表
+        </p>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {q.isPending ? (
+          <Skeleton className="h-40 w-full" />
+        ) : q.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>加载失败</AlertTitle>
+            <AlertDescription>{(q.error as Error).message}</AlertDescription>
+          </Alert>
+        ) : (q.data?.errors.length ?? 0) === 0 ? (
+          <p className="text-muted-foreground py-10 text-center text-sm">
+            区间内暂无失败请求
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className={col.primaryLg}>错误原因</TableHead>
+                <TableHead className={`${col.num} text-right`}>次数</TableHead>
+                <TableHead className={col.bar}>占比</TableHead>
+                <TableHead className={`${col.action} text-right`}>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {q.data!.errors.map((e) => (
+                <TableRow key={e.code}>
+                  <TableCell className="font-medium">
+                    {errorCodeLabel(e.code)}
+                    <span className="text-muted-foreground ml-2 font-mono text-xs">
+                      {e.code}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatInt(e.total)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-muted/70 h-1.5 w-full overflow-hidden rounded-full">
+                        <div
+                          className="bg-destructive/70 h-full rounded-full"
+                          style={{ width: `${Math.round(e.share * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-muted-foreground w-10 shrink-0 text-right text-xs tabular-nums">
+                        {formatPercent(e.share)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to="/requests?status=failed">查看</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }

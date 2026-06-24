@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/common/TablePagination";
+import { colPct } from "@/lib/table-columns";
 
 const PAGE_SIZE = 20;
 type StatusTab = "all" | "enabled" | "disabled";
@@ -122,15 +123,15 @@ export function RoutesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>线路</TableHead>
-                  <TableHead>策略</TableHead>
-                  <TableHead>可服务</TableHead>
-                  <TableHead className="text-right">请求</TableHead>
-                  <TableHead className="text-right">成功率</TableHead>
-                  <TableHead className="text-right">P95 延迟</TableHead>
-                  <TableHead className="text-right">Fallback</TableHead>
-                  <TableHead className="text-right">无可用渠道</TableHead>
-                  <TableHead className="text-right">绑定</TableHead>
+                  <TableHead className={colPct.primaryMd}>线路</TableHead>
+                  <TableHead className={colPct.textSm}>策略</TableHead>
+                  <TableHead className={colPct.badge}>可服务</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>请求</TableHead>
+                  <TableHead className={`${colPct.percent} text-right`}>成功率</TableHead>
+                  <TableHead className={`${colPct.latency} text-right`}>P95 延迟</TableHead>
+                  <TableHead className={`${colPct.percent} text-right`}>Fallback</TableHead>
+                  <TableHead className={`${colPct.badgeLg} text-right`}>无可用渠道</TableHead>
+                  <TableHead className={`${colPct.num} text-right`}>绑定</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -152,11 +153,11 @@ export function RoutesPage() {
                   table.data.items.map((rt) => (
                     <TableRow key={rt.id} className="cursor-pointer" onClick={() => setSelected(rt)}>
                       <TableCell>
-                        <div className="flex items-center gap-1.5 font-medium">
+                        <div className="flex items-center gap-1.5 truncate font-medium">
                           {rt.name}
                           {rt.is_builtin ? <Badge variant="outline">内置</Badge> : null}
                         </div>
-                        <div className="text-muted-foreground text-xs">
+                        <div className="text-muted-foreground truncate text-xs">
                           {rt.pool_kind === "all" ? "全量动态" : "手挑渠道"}
                           {rt.pool_channels > 0 ? ` · ${rt.pool_channels} 渠道` : ""}
                         </div>
