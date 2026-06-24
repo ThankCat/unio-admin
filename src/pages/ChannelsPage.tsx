@@ -1,40 +1,33 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { PlusIcon, SearchIcon } from "lucide-react";
 import {
-  BoxIcon,
-  CableIcon,
-  CircleDollarSignIcon,
-  KeyRoundIcon,
-  MoreHorizontalIcon,
-  PencilIcon,
-  PlusIcon,
-  SearchIcon,
-  Trash2Icon,
-} from "lucide-react";
-import { listChannels, type Channel } from "@/lib/api/channels";
-import type { StatusFilter } from "@/lib/api/types";
+  getChannelsOpsSummary,
+  getChannelsOpsTable,
+  type ChannelOpsRow,
+} from "@/lib/api/channelsOps";
+import { useRangeQuery } from "@/hooks/useRangeQuery";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { RangeFilter } from "@/components/common/RangeFilter";
+import { MetricCard, MetricGrid } from "@/components/common/MetricCard";
+import { ChannelDetailSheet } from "@/components/channels/ChannelDetailSheet";
 import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
-import { DeleteChannelDialog } from "@/components/channels/DeleteChannelDialog";
-import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
-import { ChannelPricesDialog } from "@/components/channels/ChannelPricesDialog";
-import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
+import { HEALTH_LABEL, HEALTH_VARIANT } from "@/components/channels/health";
+import {
+  formatCompact,
+  formatInt,
+  formatLatencyMs,
+  formatPercent,
+  formatRelativeTime,
+  formatTPS,
+} from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -43,268 +36,222 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TablePagination } from "@/components/common/TablePagination";
 
-const COLS = 6;
 const PAGE_SIZE = 20;
+type StatusTab = "all" | "enabled" | "disabled";
 
 export function ChannelsPage() {
-  const [tab, setTab] = useState<StatusFilter>("enabled");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { value, setRange, params, refresh, refreshedAt } = useRangeQuery("24h");
+
+  const [statusTab, setStatusTab] = useState<StatusTab>("all");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
-
   const search = useDebouncedValue(searchInput.trim(), 300);
 
-  const query = useQuery({
-    queryKey: ["channels", { status: tab, q: search, page }],
+  const channelIdParam = searchParams.get("channel_id");
+  const openChannelId = channelIdParam ? Number(channelIdParam) : null;
+  const setOpenChannelId = (id: number | null) => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (id == null) sp.delete("channel_id");
+        else sp.set("channel_id", String(id));
+        return sp;
+      },
+      { replace: true },
+    );
+  };
+
+  const rangeQuery = { ...params, range: value.preset };
+
+  const summary = useQuery({
+    queryKey: ["channels", "ops-summary", rangeQuery],
+    queryFn: () => getChannelsOpsSummary(rangeQuery),
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  });
+
+  const table = useQuery({
+    queryKey: ["channels", "ops-table", rangeQuery, statusTab, search, page],
     queryFn: () =>
-      listChannels({ page, pageSize: PAGE_SIZE, status: tab, q: search }),
+      getChannelsOpsTable({
+        ...rangeQuery,
+        page,
+        page_size: PAGE_SIZE,
+        status: statusTab === "all" ? undefined : statusTab,
+        search: search || undefined,
+      }),
     placeholderData: keepPreviousData,
   });
 
-  const items = query.data?.items ?? [];
-  const total = query.data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  // 渲染期夹紧：过滤后总数变小导致当前页越界时，回退到末页。
-  if (page > pageCount) {
-    setPage(pageCount);
-  }
-
-  function changeTab(next: string) {
-    setTab(next as StatusFilter);
-    setPage(1);
-  }
-
-  function changeSearch(next: string) {
-    setSearchInput(next);
-    setPage(1);
-  }
+  const pageCount = table.data ? Math.max(1, Math.ceil(table.data.total / PAGE_SIZE)) : 1;
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle>渠道</CardTitle>
-        <CardDescription>provider 下的具体上游线路</CardDescription>
-        <CardAction>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-heading text-lg font-semibold tracking-tight">渠道</h2>
+          <p className="text-muted-foreground text-sm">上游渠道运维：健康、性能、错误与定价</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <RangeFilter value={value} onChange={setRange} refreshedAt={refreshedAt} onRefresh={refresh} />
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <PlusIcon data-icon="inline-start" />
-            新建
+            新建渠道
           </Button>
-          <ChannelFormDialog open={createOpen} onOpenChange={setCreateOpen} />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs value={tab} onValueChange={changeTab}>
-            <TabsList>
-              <TabsTrigger value="enabled">启用</TabsTrigger>
-              <TabsTrigger value="disabled">停用</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="relative w-full max-w-xs">
-            <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-            <Input
-              placeholder="搜索名称 / 地址"
-              value={searchInput}
-              onChange={(e) => changeSearch(e.target.value)}
-              className="pl-8"
-            />
-          </div>
         </div>
+      </div>
 
-        {query.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{query.error.message}</AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            <Table className={query.isFetching ? "opacity-60" : undefined}>
+      <ChannelsCards summary={summary.data} loading={summary.isPending} />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs value={statusTab} onValueChange={(v) => { setStatusTab(v as StatusTab); setPage(1); }}>
+          <TabsList>
+            <TabsTrigger value="all">全部</TabsTrigger>
+            <TabsTrigger value="enabled">启用</TabsTrigger>
+            <TabsTrigger value="disabled">停用</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative">
+          <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+            placeholder="搜索渠道名"
+            className="w-56 pl-8"
+          />
+        </div>
+      </div>
+
+      {table.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>加载失败</AlertTitle>
+          <AlertDescription>{(table.error as Error).message}</AlertDescription>
+        </Alert>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">ID</TableHead>
-                  <TableHead>名称</TableHead>
-                  <TableHead>服务商</TableHead>
-                  <TableHead>协议</TableHead>
-                  <TableHead className="w-20 text-right">优先级</TableHead>
-                  <TableHead className="w-16 text-right">操作</TableHead>
+                  <TableHead>渠道</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>健康</TableHead>
+                  <TableHead className="text-right">请求</TableHead>
+                  <TableHead className="text-right">成功率</TableHead>
+                  <TableHead className="text-right">P95 延迟</TableHead>
+                  <TableHead className="text-right">超时</TableHead>
+                  <TableHead className="text-right">模型</TableHead>
+                  <TableHead>最近错误</TableHead>
+                  <TableHead>最近成功</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {query.isPending ? (
+                {table.isPending ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-8" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-48" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-16 rounded-full" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="ml-auto h-4 w-8" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="ml-auto size-8" />
+                      <TableCell colSpan={10}>
+                        <Skeleton className="h-6 w-full" />
                       </TableCell>
                     </TableRow>
                   ))
-                ) : items.length === 0 ? (
+                ) : table.data.items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={COLS} className="h-48">
-                      <ChannelsEmpty search={search} tab={tab} />
+                    <TableCell colSpan={10} className="text-muted-foreground py-10 text-center text-sm">
+                      暂无渠道
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((c) => <ChannelRow key={c.id} channel={c} />)
+                  table.data.items.map((c) => (
+                    <ChannelRow key={c.id} c={c} onOpen={() => setOpenChannelId(c.id)} />
+                  ))
                 )}
               </TableBody>
             </Table>
+          </div>
+          <TablePagination page={page} pageCount={pageCount} total={table.data?.total ?? 0} onPageChange={setPage} />
+        </div>
+      )}
 
-            <TablePagination
-              page={page}
-              pageCount={pageCount}
-              total={total}
-              onPageChange={setPage}
-            />
-          </>
-        )}
-      </CardContent>
-    </Card>
+      <ChannelDetailSheet channelId={openChannelId} range={rangeQuery} onClose={() => setOpenChannelId(null)} />
+      <ChannelFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
   );
 }
 
-function ChannelRow({ channel: c }: { channel: Channel }) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [rotateOpen, setRotateOpen] = useState(false);
-  const [modelsOpen, setModelsOpen] = useState(false);
-  const [pricesOpen, setPricesOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
+function ChannelRow({ c, onOpen }: { c: ChannelOpsRow; onOpen: () => void }) {
   return (
-    <TableRow>
-      <TableCell className="text-muted-foreground tabular-nums">
-        {c.id}
-      </TableCell>
+    <TableRow className="cursor-pointer" onClick={onOpen}>
       <TableCell>
         <div className="font-medium">{c.name}</div>
-        <div className="text-muted-foreground text-xs">{c.base_url}</div>
+        <div className="text-muted-foreground max-w-[16rem] truncate text-xs">
+          {c.provider_name} · {c.base_url}
+        </div>
       </TableCell>
-      <TableCell>{c.provider_name || `#${c.provider_id}`}</TableCell>
       <TableCell>
-        <Badge variant="outline">{c.protocol}</Badge>
+        <Badge variant={c.status === "enabled" ? "default" : "outline"}>
+          {c.status === "enabled" ? "启用" : "停用"}
+        </Badge>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{c.priority}</TableCell>
-      <TableCell className="text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="操作">
-              <MoreHorizontalIcon />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setModelsOpen(true)}>
-              <BoxIcon />
-              管理模型
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setPricesOpen(true)}>
-              <CircleDollarSignIcon />
-              定价（售价/成本）
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
-              <PencilIcon />
-              编辑
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setRotateOpen(true)}>
-              <KeyRoundIcon />
-              轮换凭据
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setDeleteOpen(true)}
-            >
-              <Trash2Icon />
-              删除
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <ChannelFormDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          channel={c}
-        />
-        <RotateCredentialDialog
-          open={rotateOpen}
-          onOpenChange={setRotateOpen}
-          channel={c}
-        />
-        <ChannelModelsDialog
-          open={modelsOpen}
-          onOpenChange={setModelsOpen}
-          channel={c}
-        />
-        <ChannelPricesDialog
-          open={pricesOpen}
-          onOpenChange={setPricesOpen}
-          channel={c}
-        />
-        <DeleteChannelDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          channel={c}
-        />
+      <TableCell>
+        <Badge variant={HEALTH_VARIANT[c.health]}>{HEALTH_LABEL[c.health]}</Badge>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">{formatCompact(c.attempt_total)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatPercent(c.success_rate)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatLatencyMs(c.latency_p95)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatInt(c.timeout_total)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatInt(c.bound_models)}</TableCell>
+      <TableCell className="text-muted-foreground max-w-[10rem] truncate text-xs">
+        {c.recent_error_code || "—"}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-xs">
+        {c.last_success_at ? formatRelativeTime(c.last_success_at) : "—"}
       </TableCell>
     </TableRow>
   );
 }
 
-function ChannelsEmpty({
-  search,
-  tab,
+function ChannelsCards({
+  summary,
+  loading,
 }: {
-  search: string;
-  tab: StatusFilter;
+  summary?: import("@/lib/api/channelsOps").ChannelsOpsSummary;
+  loading: boolean;
 }) {
-  if (search) {
-    return (
-      <p className="text-muted-foreground text-center text-sm">
-        没有匹配「{search}」的渠道
-      </p>
-    );
-  }
+  const s = summary;
+  const health = s
+    ? `健康 ${s.health.healthy} · 降级 ${s.health.degraded} · 不健康 ${s.health.unhealthy} · 无数据 ${s.health.no_data}`
+    : undefined;
+  const priceRate =
+    s && s.price_total > 0 ? s.price_with_price / s.price_total : 0;
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <CableIcon />
-        </EmptyMedia>
-        <EmptyTitle>暂无渠道</EmptyTitle>
-        <EmptyDescription>
-          {tab === "enabled" ? "没有启用中的渠道。" : "没有已停用的渠道。"}
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <MetricGrid>
+      <MetricCard label="渠道总数" loading={loading} value={formatInt(s?.total ?? 0)} hint={s ? `启用 ${s.enabled}` : undefined} />
+      <MetricCard label="启用渠道" loading={loading} value={formatInt(s?.enabled ?? 0)} hint={s ? `停用 ${s.disabled}` : undefined} />
+      <MetricCard
+        label="健康状态"
+        loading={loading}
+        value={s ? formatInt(s.health.healthy) : "—"}
+        hint={s ? `不健康 ${s.health.unhealthy}` : undefined}
+        tooltip={health}
+        intent={s && s.health.unhealthy > 0 ? "danger" : "default"}
+      />
+      <MetricCard label="请求量" loading={loading} value={formatCompact(s?.attempt_total ?? 0)} tooltip="attempt 维度（每次上游尝试）" hint={s ? `成功 ${formatCompact(s.attempt_succeeded)}` : undefined} />
+      <MetricCard label="成功率" loading={loading} value={formatPercent(s?.success_rate ?? 0)} intent={s ? (s.success_rate >= 0.95 ? "success" : s.success_rate >= 0.8 ? "warning" : "danger") : "default"} tooltip="attempt 成功率" />
+      <MetricCard label="性能" loading={loading} value={formatLatencyMs(s?.latency_p95 ?? 0)} tooltip="P95 完成延迟（attempt）" />
+      <MetricCard label="TPS" loading={loading} value={s ? formatTPS(s.tps) : "—"} tooltip="成功请求平均输出 token 速度（最终渠道归因）" />
+      <MetricCard label="超时" loading={loading} value={formatInt(s?.timeout_total ?? 0)} intent={s && s.timeout_total > 0 ? "warning" : "default"} />
+      <MetricCard label="最近错误" loading={loading} value={s?.recent_error_code || "—"} hint={s?.recent_error_channel || undefined} />
+      <MetricCard
+        label="价格完整率"
+        loading={loading}
+        value={formatPercent(priceRate)}
+        tooltip={s ? `有售价 ${s.price_with_price}/${s.price_total} · 有成本 ${s.price_with_cost}` : undefined}
+      />
+      <MetricCard label="凭据状态" loading={loading} value={s ? `${s.enabled} 已配置` : "—"} tooltip="所有渠道均已加密配置凭据" />
+    </MetricGrid>
   );
 }

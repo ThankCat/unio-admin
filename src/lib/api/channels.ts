@@ -41,6 +41,12 @@ export async function listChannels(
   return { items: res.data.data, total: res.data.meta.total };
 }
 
+// 读取单条渠道完整配置（抽屉/编辑前回填）。
+export async function getChannel(id: number): Promise<Channel> {
+  const res = await api.get<{ data: Channel }>(`/admin/v1/channels/${id}`);
+  return res.data.data;
+}
+
 // 创建入参与后端 createChannelRequest 对齐；credential 为明文，后端加密落库。
 export interface CreateChannelInput {
   provider_id: number;
