@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 import type { BillingException, LedgerEntry } from "@/lib/api/ledger";
 
@@ -83,6 +84,7 @@ export interface RequestDetail extends RequestSummary {
 export interface RequestListParams {
   page: number;
   pageSize: number;
+  sort?: string;
   status?: string;
   model?: string;
   userId?: number;
@@ -98,17 +100,18 @@ export async function listRequests(
   const res = await api.get<{ data: RequestSummary[]; meta: ListMeta }>(
     "/admin/v1/requests",
     {
-      params: {
+      params: buildListQuery({
         page: params.page,
         page_size: params.pageSize,
-        status: params.status || undefined,
-        model: params.model || undefined,
-        user_id: params.userId || undefined,
-        project_id: params.projectId || undefined,
-        api_key_id: params.apiKeyId || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-      },
+        sort: params.sort,
+        status: params.status,
+        model: params.model,
+        user_id: params.userId,
+        project_id: params.projectId,
+        api_key_id: params.apiKeyId,
+        from: params.from,
+        to: params.to,
+      }),
     },
   );
   return { items: res.data.data, total: res.data.meta.total };

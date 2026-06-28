@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { createRoute, updateRoute, type Route } from "@/lib/api/routes";
 import { listChannels } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
+import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -71,6 +72,7 @@ function RouteForm({
     route?.channels.map((c) => c.channel_id) ?? [],
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
   const effectivePool = mode === "fixed" ? "explicit" : poolKind;
 
@@ -116,6 +118,10 @@ function RouteForm({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (route && status !== route.status) {
+      setStatusConfirmOpen(true);
+      return;
+    }
     mutation.mutate();
   }
 
@@ -131,6 +137,7 @@ function RouteForm({
   }, [channelsQuery.data]);
 
   return (
+    <>
     <form onSubmit={handleSubmit}>
       <DialogHeader>
         <DialogTitle>{route ? "编辑线路" : "新建线路"}</DialogTitle>
@@ -254,5 +261,17 @@ function RouteForm({
         </Button>
       </DialogFooter>
     </form>
+    {route ? (
+      <StatusChangeConfirmDialog
+        open={statusConfirmOpen}
+        onOpenChange={setStatusConfirmOpen}
+        entityLabel="线路"
+        entityName={name.trim() || route.name}
+        enabling={status === "enabled"}
+        pending={mutation.isPending}
+        onConfirm={() => mutation.mutate()}
+      />
+    ) : null}
+    </>
   );
 }

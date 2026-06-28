@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 import type { HealthBucket, LatencyStats, RangeQuery } from "@/lib/api/dashboard";
 
@@ -9,6 +10,7 @@ export interface ProviderOpsRow {
   slug: string;
   name: string;
   status: string;
+  created_at: string;
   channel_total: number;
   channel_enabled: number;
   attempt_total: number;
@@ -18,6 +20,11 @@ export interface ProviderOpsRow {
   latency: LatencyStats;
   health: HealthBucket;
   last_success_at: string | null;
+  tokens: number;
+  revenue_usd: string;
+  cost_usd: string;
+  margin_usd: string;
+  avg_tps: number;
 }
 
 export interface ProviderOpsDetail {
@@ -61,6 +68,7 @@ export interface ProviderOpsError {
 export interface ProvidersOpsTableParams extends RangeQuery {
   page: number;
   page_size: number;
+  sort?: string;
   status?: string;
   search?: string;
 }
@@ -70,7 +78,7 @@ export async function getProvidersOpsTable(
 ): Promise<Page<ProviderOpsRow>> {
   const res = await api.get<{ data: ProviderOpsRow[]; meta: ListMeta }>(
     "/admin/v1/providers/ops",
-    { params },
+    { params: buildListQuery(params) },
   );
   return { items: res.data.data, total: res.data.meta.total };
 }

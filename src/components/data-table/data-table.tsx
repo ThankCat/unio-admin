@@ -165,14 +165,16 @@ export function DataTable<TData>({
         style={{ minWidth: totalSize }}
       >
         <colgroup>
-          {headerGroup?.headers.map((header) => (
-            <col
-              key={header.id}
-              style={{
-                width: `${(header.getSize() / totalSize) * 100}%`,
-              }}
-            />
-          ))}
+          {headerGroup?.headers.map((header) => {
+            const fillColumn =
+              pinnedColumnId != null && header.column.id === pinnedColumnId;
+            return (
+              <col
+                key={header.id}
+                style={fillColumn ? undefined : { width: header.getSize() }}
+              />
+            );
+          })}
         </colgroup>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
@@ -201,7 +203,10 @@ export function DataTable<TData>({
             table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                className={cn(onRowClick && "cursor-pointer")}
+                className={cn(
+                  onRowClick &&
+                    "cursor-pointer transition-colors hover:bg-accent/50",
+                )}
                 onClick={
                   onRowClick
                     ? () => onRowClick(row.original)

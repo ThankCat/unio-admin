@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 import type { RangeQuery } from "@/lib/api/dashboard";
 
@@ -101,6 +102,7 @@ export interface ApiKeyOpsRow {
 interface PageParams extends RangeQuery {
   page: number;
   page_size: number;
+  sort?: string;
   search?: string;
 }
 
@@ -110,7 +112,9 @@ export async function getUsersOpsSummary(params: RangeQuery): Promise<UsersOpsSu
 }
 
 export async function getUsersOpsTable(params: PageParams): Promise<Page<UserOpsRow>> {
-  const res = await api.get<{ data: UserOpsRow[]; meta: ListMeta }>("/admin/v1/users/ops", { params });
+  const res = await api.get<{ data: UserOpsRow[]; meta: ListMeta }>("/admin/v1/users/ops", {
+    params: buildListQuery(params),
+  });
   return { items: res.data.data, total: res.data.meta.total };
 }
 
@@ -130,7 +134,9 @@ export async function getProjectsOpsSummary(params: RangeQuery): Promise<Project
 }
 
 export async function getProjectsOpsTable(params: PageParams): Promise<Page<ProjectOpsRow>> {
-  const res = await api.get<{ data: ProjectOpsRow[]; meta: ListMeta }>("/admin/v1/projects/ops", { params });
+  const res = await api.get<{ data: ProjectOpsRow[]; meta: ListMeta }>("/admin/v1/projects/ops", {
+    params: buildListQuery(params),
+  });
   return { items: res.data.data, total: res.data.meta.total };
 }
 

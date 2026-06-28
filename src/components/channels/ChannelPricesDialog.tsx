@@ -21,6 +21,7 @@ import {
   rfc3339ToLocal,
   trimDecimal,
 } from "@/lib/format";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -461,6 +462,9 @@ function ChannelPriceRow({
   onChanged: () => void;
 }) {
   const [draftTo, setDraftTo] = useState(rfc3339ToLocal(price.effective_to));
+  const [pendingStatus, setPendingStatus] = useState<"enabled" | "disabled" | null>(
+    null,
+  );
 
   const mutation = useMutation({
     mutationFn: (vars: { status: string; effective_to: string | null }) =>
@@ -469,7 +473,10 @@ function ChannelPriceRow({
         status: vars.status,
         effective_to: vars.effective_to,
       }),
-    onSuccess: () => onChanged(),
+    onSuccess: () => {
+      setPendingStatus(null);
+      onChanged();
+    },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
@@ -477,6 +484,7 @@ function ChannelPriceRow({
   const currentTo = rfc3339ToLocal(price.effective_to);
   const dirty = draftTo !== currentTo;
   const busy = mutation.isPending;
+  const disabling = pendingStatus === "disabled";
 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
@@ -528,10 +536,7 @@ function ChannelPriceRow({
           checked={enabled}
           disabled={busy}
           onCheckedChange={(next) =>
-            mutation.mutate({
-              status: next ? "enabled" : "disabled",
-              effective_to: price.effective_to,
-            })
+            setPendingStatus(next ? "enabled" : "disabled")
           }
           aria-label={`切换价格 ${price.id} 状态`}
         />
@@ -539,6 +544,29 @@ function ChannelPriceRow({
           {enabled ? "启用" : "停用"}
         </Badge>
       </div>
+
+      <ConfirmActionDialog
+        open={pendingStatus != null}
+        onOpenChange={(o) => {
+          if (!o && !busy) setPendingStatus(null);
+        }}
+        title={disabling ? "停用渠道-模型价" : "启用渠道-模型价"}
+        description={
+          disabling
+            ? `确认停用「${price.model_external_id}」的这条价格？停用后该价格不再参与计费，可随时重新启用。`
+            : `确认启用「${price.model_external_id}」的这条价格？启用后该价格将在其生效区间内参与计费。`
+        }
+        confirmLabel={disabling ? "确认停用" : "确认启用"}
+        destructive={disabling}
+        pending={busy}
+        onConfirm={() =>
+          pendingStatus &&
+          mutation.mutate({
+            status: pendingStatus,
+            effective_to: price.effective_to,
+          })
+        }
+      />
     </li>
   );
 }

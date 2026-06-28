@@ -43,6 +43,25 @@ const MONEY_PATTERN = /^\d+(\.\d+)?$/;
 interface FieldErrors {
   name?: string;
   spendLimit?: string;
+  rpm?: string;
+  tpm?: string;
+  rpd?: string;
+}
+
+// 限流输入解析：空串→null（继承全局默认）；否则取整数（0=不限，>0=具体上限）。
+function parseRateLimit(raw: string): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  return Number(t);
+}
+
+// 校验单个限流维度：空串放行；否则须为非负整数。
+function rateLimitError(raw: string): string | undefined {
+  const t = raw.trim();
+  if (t === "") return undefined;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 0) return "需为 ≥ 0 的整数（0=不限，留空=继承默认）";
+  return undefined;
 }
 
 // 创建 API Key 弹窗：成功后切到「明文展示」态，明文只展示这一次。
@@ -58,6 +77,9 @@ export function CreateApiKeyDialog({
   const [expiresLocal, setExpiresLocal] = useState("");
   const [spendLimit, setSpendLimit] = useState("");
   const [routeId, setRouteId] = useState("");
+  const [rpmLimit, setRpmLimit] = useState("");
+  const [tpmLimit, setTpmLimit] = useState("");
+  const [rpdLimit, setRpdLimit] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
 
@@ -78,6 +100,11 @@ export function CreateApiKeyDialog({
         expiresAt: expiresLocal ? localToRFC3339(expiresLocal) : undefined,
         spendLimit: spendLimit.trim() || undefined,
         routeId: routeId ? Number(routeId) : undefined,
+        rateLimits: {
+          rpm: parseRateLimit(rpmLimit),
+          tpm: parseRateLimit(tpmLimit),
+          rpd: parseRateLimit(rpdLimit),
+        },
       }),
     onSuccess: (key) => {
       queryClient.invalidateQueries({ queryKey: ["api-keys", projectId] });
@@ -95,6 +122,9 @@ export function CreateApiKeyDialog({
       setExpiresLocal("");
       setSpendLimit("");
       setRouteId("");
+      setRpmLimit("");
+      setTpmLimit("");
+      setRpdLimit("");
       setErrors({});
       setCreated(null);
       mutation.reset();
@@ -109,8 +139,11 @@ export function CreateApiKeyDialog({
     if (spendLimit.trim() !== "" && !MONEY_PATTERN.test(spendLimit.trim())) {
       next.spendLimit = "需为非负金额";
     }
+    next.rpm = rateLimitError(rpmLimit);
+    next.tpm = rateLimitError(tpmLimit);
+    next.rpd = rateLimitError(rpdLimit);
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return Object.values(next).every((v) => v === undefined);
   }
 
   function handleSubmit(e: FormEvent) {
@@ -237,6 +270,54 @@ export function CreateApiKeyDialog({
                   </Select>
                   <FieldDescription>
                     决定该 Key 的选路策略与候选池；不选则回落项目默认 / 内置经济
+                  </FieldDescription>
+                </Field>
+
+                <Field>
+                  <FieldLabel>令牌级限流（P2-8）</FieldLabel>
+                  <div className="grid grid-cols-3 gap-4">
+                    <Field data-invalid={!!errors.rpm}>
+                      <FieldLabel htmlFor="key_rpm">RPM</FieldLabel>
+                      <Input
+                        id="key_rpm"
+                        type="number"
+                        min={0}
+                        value={rpmLimit}
+                        onChange={(e) => setRpmLimit(e.target.value)}
+                        placeholder="继承默认"
+                        aria-invalid={!!errors.rpm}
+                      />
+                      <FieldError>{errors.rpm}</FieldError>
+                    </Field>
+                    <Field data-invalid={!!errors.tpm}>
+                      <FieldLabel htmlFor="key_tpm">TPM</FieldLabel>
+                      <Input
+                        id="key_tpm"
+                        type="number"
+                        min={0}
+                        value={tpmLimit}
+                        onChange={(e) => setTpmLimit(e.target.value)}
+                        placeholder="继承默认"
+                        aria-invalid={!!errors.tpm}
+                      />
+                      <FieldError>{errors.tpm}</FieldError>
+                    </Field>
+                    <Field data-invalid={!!errors.rpd}>
+                      <FieldLabel htmlFor="key_rpd">RPD</FieldLabel>
+                      <Input
+                        id="key_rpd"
+                        type="number"
+                        min={0}
+                        value={rpdLimit}
+                        onChange={(e) => setRpdLimit(e.target.value)}
+                        placeholder="继承默认"
+                        aria-invalid={!!errors.rpd}
+                      />
+                      <FieldError>{errors.rpd}</FieldError>
+                    </Field>
+                  </div>
+                  <FieldDescription>
+                    每分钟请求数 / 每分钟 token 数 / 每日请求数；留空=继承全局默认，0=不限。
                   </FieldDescription>
                 </Field>
               </FieldGroup>

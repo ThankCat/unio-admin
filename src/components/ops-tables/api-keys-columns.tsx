@@ -14,6 +14,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ApiKeySpendLimitDialog } from "@/components/customer/ApiKeySpendLimitDialog";
 
+// budgetUsagePercent 计算费用上限使用率（向下取整百分比）；未设上限返回 null（不展示比例）。
+function budgetUsagePercent(
+  spendLimit: string | null,
+  spentTotal: string,
+): number | null {
+  if (!spendLimit) return null;
+  const limit = Number(spendLimit);
+  const spent = Number(spentTotal);
+  if (!Number.isFinite(limit) || limit <= 0 || !Number.isFinite(spent)) return null;
+  return Math.floor((spent / limit) * 100);
+}
+
 function toApiKey(row: ApiKeyOpsRow): ApiKey {
   return {
     id: row.id,
@@ -24,6 +36,9 @@ function toApiKey(row: ApiKeyOpsRow): ApiKey {
     spend_limit: row.spend_limit,
     spent_total: row.spent_total,
     route_id: null,
+    rpm_limit: null,
+    tpm_limit: null,
+    rpd_limit: null,
     last_used_at: row.last_used_at,
     expires_at: row.expires_at,
     disabled_at: null,
@@ -35,7 +50,7 @@ function toApiKey(row: ApiKeyOpsRow): ApiKey {
 
 export function apiKeyOpsColumns(handlers: {
   onToggle: (row: ApiKeyOpsRow) => void;
-  onRevoke: (id: number) => void;
+  onRevoke: (row: ApiKeyOpsRow) => void;
 }): ColumnDef<ApiKeyOpsRow, unknown>[] {
   return [
     resizableColumn<ApiKeyOpsRow>("name", {
@@ -79,8 +94,26 @@ export function apiKeyOpsColumns(handlers: {
     }),
     resizableColumn<ApiKeyOpsRow>("spent_total", {
       header: "已用",
-      size: 112,
-      cell: ({ row }) => <span className="text-xs">{formatUSD(row.original.spent_total)}</span>,
+      size: 124,
+      cell: ({ row }) => {
+        const used = formatUSD(row.original.spent_total);
+        const pct = budgetUsagePercent(row.original.spend_limit, row.original.spent_total);
+        if (pct === null) {
+          return <span className="text-xs">{used}</span>;
+        }
+        // P2-1：软上限可视化——接近/达到上限即高亮告警（不加硬闸门，spend_limit 命中由后端自动停用）。
+        const tone =
+          pct >= 100
+            ? "text-destructive font-medium"
+            : pct >= 80
+              ? "text-amber-600 dark:text-amber-500"
+              : "text-muted-foreground";
+        return (
+          <span className={`text-xs ${tone}`}>
+            {used} <span className="tabular-nums">({pct}%)</span>
+          </span>
+        );
+      },
     }),
     resizableColumn<ApiKeyOpsRow>("request_total", {
       header: "请求",
@@ -125,7 +158,7 @@ export function apiKeyOpsColumns(handlers: {
               {row.original.status !== "revoked" ? (
                 <DropdownMenuItem
                   variant="destructive"
-                  onSelect={() => handlers.onRevoke(row.original.id)}
+                  onSelect={() => handlers.onRevoke(row.original)}
                 >
                   吊销
                 </DropdownMenuItem>

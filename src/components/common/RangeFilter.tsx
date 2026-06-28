@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { CalendarIcon, RefreshCwIcon } from "lucide-react";
+import { CalendarIcon, ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import {
   RANGE_PRESETS,
   type RangePreset,
@@ -16,13 +16,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  HoverDropdownMenu,
+  HoverDropdownMenuContent,
+  HoverDropdownMenuTrigger,
+} from "@/components/ui/hover-dropdown-menu";
 
 // 固定范围下拉 + 自定义区间 + 「最后刷新」+ 刷新按钮。
 export function RangeFilter({
@@ -39,7 +40,13 @@ export function RangeFilter({
   className?: string;
 }) {
   const [calOpen, setCalOpen] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>();
+  const presetValue = value.preset === "custom" ? "" : value.preset;
+  const presetLabel =
+    value.preset === "custom"
+      ? "时间范围"
+      : (RANGE_PRESETS.find((p) => p.value === value.preset)?.label ?? "时间范围");
 
   function handlePreset(next: string) {
     if (!next) return;
@@ -63,23 +70,34 @@ export function RangeFilter({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <Select
-        value={value.preset === "custom" ? "" : value.preset}
-        onValueChange={handlePreset}
-      >
-        <SelectTrigger size="sm" className="min-w-28">
-          <SelectValue placeholder="时间范围" />
-        </SelectTrigger>
-        <SelectContent align="end" position="popper">
-          <SelectGroup>
+      <HoverDropdownMenu open={presetOpen} onOpenChange={setPresetOpen}>
+        <HoverDropdownMenuTrigger asChild onOpen={() => setPresetOpen(true)}>
+          <button
+            type="button"
+            className="flex h-7 min-w-28 items-center justify-between gap-1.5 rounded-[min(var(--radius-md),10px)] border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50"
+          >
+            <span className={cn(value.preset === "custom" && "text-muted-foreground")}>
+              {presetLabel}
+            </span>
+            <ChevronDownIcon className="text-muted-foreground size-4 shrink-0" />
+          </button>
+        </HoverDropdownMenuTrigger>
+        <HoverDropdownMenuContent align="end" className="min-w-(--radix-dropdown-menu-trigger-width)">
+          <DropdownMenuRadioGroup
+            value={presetValue}
+            onValueChange={(next) => {
+              handlePreset(next);
+              setPresetOpen(false);
+            }}
+          >
             {RANGE_PRESETS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>
+              <DropdownMenuRadioItem key={p.value} value={p.value}>
                 {p.label}
-              </SelectItem>
+              </DropdownMenuRadioItem>
             ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+          </DropdownMenuRadioGroup>
+        </HoverDropdownMenuContent>
+      </HoverDropdownMenu>
 
       <Popover open={calOpen} onOpenChange={setCalOpen}>
         <PopoverTrigger asChild>

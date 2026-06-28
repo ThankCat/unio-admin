@@ -1,0 +1,231 @@
+import type { ColumnDef } from "@tanstack/react-table";
+import { Link } from "react-router-dom";
+import { ArrowUpRightIcon } from "lucide-react";
+import type { ChannelOpsError, ChannelOpsModel, ChannelOpsRoute } from "@/lib/api/channelsOps";
+import { resizableColumn } from "@/components/data-table";
+import { AttemptLatencyCell } from "@/components/ops-tables/AttemptLatencyCell";
+import { AttemptSuccessRateCell } from "@/components/ops-tables/AttemptSuccessRateCell";
+import { TruncateCell } from "@/components/openstatus-table/truncate-cell";
+import { formatCompact } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+function fmtTs(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export const CHANNEL_OPS_ERROR_COLUMN_LABELS: Record<string, string> = {
+  at: "时间",
+  upstream_model: "模型",
+  error_code: "错误码",
+  upstream_status_code: "HTTP",
+  error_message: "错误信息",
+  request_id: "请求",
+};
+
+export const CHANNEL_OPS_MODEL_COLUMN_LABELS: Record<string, string> = {
+  model: "模型",
+  upstream_model: "上游名",
+  attempt_total: "尝试",
+  success_rate: "成功率",
+  latency: "平均延迟",
+  has_price: "价格",
+};
+
+export const CHANNEL_OPS_ROUTE_COLUMN_LABELS: Record<string, string> = {
+  name: "线路",
+  mode: "策略",
+  pool_kind: "池",
+  status: "状态",
+  action: "操作",
+};
+
+export function channelOpsErrorColumns(): ColumnDef<ChannelOpsError, unknown>[] {
+  return [
+    resizableColumn<ChannelOpsError>("at", {
+      header: "时间",
+      size: 112,
+      minSize: 88,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <span className="text-xs tabular-nums">{fmtTs(row.original.at)}</span>
+      ),
+    }),
+    resizableColumn<ChannelOpsError>("upstream_model", {
+      header: "模型",
+      size: 160,
+      minSize: 120,
+      cell: ({ row }) => (
+        <TruncateCell
+          className="text-muted-foreground text-xs"
+          text={row.original.upstream_model || "—"}
+        />
+      ),
+    }),
+    resizableColumn<ChannelOpsError>("error_code", {
+      header: "错误码",
+      size: 120,
+      minSize: 88,
+      cell: ({ row }) =>
+        row.original.error_code ? (
+          <Badge variant="outline" className="font-mono text-xs">
+            {row.original.error_code}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        ),
+    }),
+    resizableColumn<ChannelOpsError>("upstream_status_code", {
+      header: "HTTP",
+      size: 72,
+      minSize: 56,
+      cell: ({ row }) => (
+        <span className="text-xs tabular-nums">{row.original.upstream_status_code ?? "—"}</span>
+      ),
+    }),
+    resizableColumn<ChannelOpsError>("error_message", {
+      header: "错误信息",
+      size: 320,
+      minSize: 180,
+      cell: ({ row }) => (
+        <TruncateCell
+          className="text-xs"
+          text={row.original.error_message || "—"}
+        />
+      ),
+    }),
+    resizableColumn<ChannelOpsError>("request_id", {
+      header: "请求",
+      size: 120,
+      minSize: 88,
+      cell: ({ row }) => (
+        <Button asChild size="sm" variant="ghost" className="font-mono text-xs">
+          <Link to={`/requests?q=${row.original.request_id}`}>
+            {row.original.request_id.slice(0, 8)}…
+            <ArrowUpRightIcon data-icon="inline-end" />
+          </Link>
+        </Button>
+      ),
+    }),
+  ];
+}
+
+export function channelOpsModelColumns(): ColumnDef<ChannelOpsModel, unknown>[] {
+  return [
+    resizableColumn<ChannelOpsModel>("model", {
+      header: "模型",
+      size: 200,
+      minSize: 140,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <TruncateCell
+          text={row.original.model_ref}
+          className="text-xs font-medium"
+          subtext={row.original.display_name}
+        />
+      ),
+    }),
+    resizableColumn<ChannelOpsModel>("upstream_model", {
+      header: "上游名",
+      size: 160,
+      minSize: 120,
+      cell: ({ row }) => (
+        <TruncateCell className="text-muted-foreground text-xs" text={row.original.upstream_model} />
+      ),
+    }),
+    resizableColumn<ChannelOpsModel>("attempt_total", {
+      header: "尝试",
+      size: 96,
+      minSize: 72,
+      cell: ({ row }) => (
+        <span className="text-xs tabular-nums">{formatCompact(row.original.attempt_total)}</span>
+      ),
+    }),
+    resizableColumn<ChannelOpsModel>("success_rate", {
+      header: "成功率",
+      size: 96,
+      minSize: 80,
+      cell: ({ row }) => (
+        <AttemptSuccessRateCell
+          attemptTotal={row.original.attempt_total}
+          attemptSucceeded={row.original.attempt_succeeded}
+          successRate={row.original.success_rate}
+          className="text-xs"
+        />
+      ),
+    }),
+    resizableColumn<ChannelOpsModel>("latency", {
+      header: "平均延迟",
+      size: 112,
+      minSize: 88,
+      cell: ({ row }) => <AttemptLatencyCell latency={row.original.latency} className="text-xs" />,
+    }),
+    resizableColumn<ChannelOpsModel>("has_price", {
+      header: "价格",
+      size: 96,
+      minSize: 72,
+      cell: ({ row }) =>
+        row.original.has_price ? (
+          <Badge variant="default">已配置</Badge>
+        ) : (
+          <Badge variant="destructive">缺价</Badge>
+        ),
+    }),
+  ];
+}
+
+export function channelOpsRouteColumns(): ColumnDef<ChannelOpsRoute, unknown>[] {
+  return [
+    resizableColumn<ChannelOpsRoute>("name", {
+      header: "线路",
+      size: 200,
+      minSize: 140,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <span className="text-sm font-medium">
+          {row.original.name}
+          {row.original.is_builtin ? (
+            <Badge variant="outline" className="ml-1.5">内置</Badge>
+          ) : null}
+        </span>
+      ),
+    }),
+    resizableColumn<ChannelOpsRoute>("mode", {
+      header: "策略",
+      size: 100,
+      minSize: 72,
+      cell: ({ row }) => <span className="text-xs">{row.original.mode}</span>,
+    }),
+    resizableColumn<ChannelOpsRoute>("pool_kind", {
+      header: "池",
+      size: 100,
+      minSize: 72,
+      cell: ({ row }) => <span className="text-xs">{row.original.pool_kind}</span>,
+    }),
+    resizableColumn<ChannelOpsRoute>("status", {
+      header: "状态",
+      size: 88,
+      minSize: 72,
+      cell: ({ row }) => (
+        <Badge variant={row.original.status === "enabled" ? "default" : "outline"}>
+          {row.original.status === "enabled" ? "启用" : "停用"}
+        </Badge>
+      ),
+    }),
+    resizableColumn<ChannelOpsRoute>("action", {
+      header: "操作",
+      size: 80,
+      minSize: 64,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <Button asChild size="sm" variant="ghost">
+          <Link to={`/routes/${row.original.id}`}>
+            详情
+            <ArrowUpRightIcon data-icon="inline-end" />
+          </Link>
+        </Button>
+      ),
+    }),
+  ];
+}

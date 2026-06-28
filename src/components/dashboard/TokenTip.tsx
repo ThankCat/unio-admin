@@ -2,13 +2,6 @@ import type { CacheStats, TokenStats } from "@/lib/api/dashboard";
 import { formatCompact, formatInt, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableRow,
-} from "@/components/ui/table";
 
 function Row({
   label,
@@ -22,27 +15,26 @@ function Row({
   emphasis?: boolean;
 }) {
   return (
-    <TableRow className="hover:bg-transparent">
-      <TableCell
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span
         className={cn(
-          "py-1.5",
           indent ? "text-muted-foreground pl-5 text-[11px]" : "text-xs",
           emphasis && "font-medium text-foreground",
         )}
         title={formatInt(value)}
       >
         {label}
-      </TableCell>
-      <TableCell
+      </span>
+      <span
         className={cn(
-          "py-1.5 tabular-nums",
+          "tabular-nums",
           indent ? "text-muted-foreground text-[11px]" : "text-xs",
           emphasis ? "font-semibold text-foreground" : "font-medium",
         )}
       >
         {formatCompact(value)}
-      </TableCell>
-    </TableRow>
+      </span>
+    </div>
   );
 }
 
@@ -55,7 +47,7 @@ export function TokenTip({
   cache: CacheStats;
 }) {
   return (
-    <div className="flex w-72 flex-col gap-2.5">
+    <div className="flex w-full flex-col gap-2.5">
       <div className="flex items-end justify-between gap-3">
         <div>
           <div className="text-sm font-semibold leading-tight">Token 总量</div>
@@ -68,26 +60,20 @@ export function TokenTip({
         </Badge>
       </div>
 
-      <Table>
-        <TableBody>
-          <Row label="输入" value={tokens.input} emphasis />
-          <Row label="未缓存" value={cache.uncached_tokens} indent />
-          <Row label="缓存读取" value={cache.cache_read_tokens} indent />
-          <Row label="缓存写入 5m" value={cache.cache_write_5m_tokens} indent />
-          <Row label="缓存写入 1h" value={cache.cache_write_1h_tokens} indent />
-          <Row label="输出" value={tokens.output} emphasis />
-        </TableBody>
-        <TableFooter className="bg-transparent">
-          <TableRow className="hover:bg-transparent">
-            <TableCell className="py-1.5 text-xs font-semibold text-foreground">
-              总计
-            </TableCell>
-            <TableCell className="py-1.5 text-xs font-semibold tabular-nums text-foreground">
-              {formatCompact(tokens.total)}
-            </TableCell>
-          </TableRow>
-        </TableFooter>
-      </Table>
+      <div className="flex flex-col">
+        <Row label="输入" value={tokens.input} emphasis />
+        <Row label="未缓存" value={cache.uncached_tokens} indent />
+        <Row label="缓存读取" value={cache.cache_read_tokens} indent />
+        <Row label="缓存写入 5m" value={cache.cache_write_5m_tokens} indent />
+        <Row label="缓存写入 1h" value={cache.cache_write_1h_tokens} indent />
+        <Row label="输出" value={tokens.output} emphasis />
+        <div className="mt-1 flex items-center justify-between gap-3 border-t py-1.5">
+          <span className="text-xs font-semibold text-foreground">总计</span>
+          <span className="text-xs font-semibold tabular-nums text-foreground">
+            {formatCompact(tokens.total)}
+          </span>
+        </div>
+      </div>
 
       <p className="text-muted-foreground text-[10px] leading-relaxed">
         输入 = 未缓存 + 缓存读取 + 缓存写入；缓存占比 = 缓存 token ÷ 输入 token。区间内成功结算请求汇总。

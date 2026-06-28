@@ -106,7 +106,7 @@ export function RequestSuccessTip({ requests }: { requests: RadarRequests }) {
   const canceledPct = terminal > 0 ? requests.canceled / terminal : 0;
 
   return (
-    <div className="w-80 space-y-3">
+    <div className="w-full space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
           <div className="text-sm font-semibold leading-tight">请求成功率</div>

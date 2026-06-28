@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/channels";
 import { listAllProviders } from "@/lib/api/providers";
 import { apiErrorMessage } from "@/lib/api/client";
+import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -66,6 +67,30 @@ interface FieldErrors {
   credential?: string;
   priority?: string;
   timeout_ms?: string;
+  rpm_limit?: string;
+  tpm_limit?: string;
+  rpd_limit?: string;
+}
+
+// 限流输入回填：null（继承全局默认）→ 空串；数字（含 0=不限）→ 字符串。
+function rateLimitToInput(v: number | null | undefined): string {
+  return v == null ? "" : String(v);
+}
+
+// 限流输入解析：空串→null（继承全局默认）；否则取整数（0=不限，>0=具体上限）。
+function parseRateLimit(raw: string): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  return Number(t);
+}
+
+// 校验单个限流维度：空串放行；否则须为非负整数。
+function rateLimitError(raw: string): string | undefined {
+  const t = raw.trim();
+  if (t === "") return undefined;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 0) return "需为 ≥ 0 的整数（0=不限，留空=继承默认）";
+  return undefined;
 }
 
 function ChannelForm({
@@ -95,14 +120,28 @@ function ChannelForm({
   const [timeoutMs, setTimeoutMs] = useState(
     channel?.timeout_ms != null ? String(channel.timeout_ms) : "",
   );
+  const [rpmLimit, setRpmLimit] = useState(rateLimitToInput(channel?.rpm_limit));
+  const [tpmLimit, setTpmLimit] = useState(rateLimitToInput(channel?.tpm_limit));
+  const [rpdLimit, setRpdLimit] = useState(rateLimitToInput(channel?.rpd_limit));
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
-  // 仅创建时需要服务商下拉；编辑时所属服务商不可改，不必拉取。
+  // 编辑时单条 GET 可能不带 provider_name，用全量列表兜底解析。
   const providersQuery = useQuery({
-    queryKey: ["providers", "options"],
+    queryKey: ["providers", "all"],
     queryFn: listAllProviders,
-    enabled: !isEdit,
   });
+
+  const providerDisplay = useMemo(() => {
+    if (!channel) return "";
+    if (channel.provider_name) {
+      return `${channel.provider_name}（#${channel.provider_id}）`;
+    }
+    const provider = providersQuery.data?.find((p) => p.id === channel.provider_id);
+    if (provider) return `${provider.name}（${provider.slug}）`;
+    if (providersQuery.isPending) return "加载中…";
+    return `未知（#${channel.provider_id}）`;
+  }, [channel, providersQuery.data, providersQuery.isPending]);
 
   // 可选 adapter_key 由后端按已注册能力枚举；仅创建时需要（编辑不可改 adapter）。
   const adapterKeysQuery = useQuery({
@@ -130,6 +169,11 @@ function ChannelForm({
     mutationFn: () => {
       const timeout = timeoutMs.trim() === "" ? null : Number(timeoutMs);
       const prio = Number(priority);
+      const rateLimits = {
+        rpm: parseRateLimit(rpmLimit),
+        tpm: parseRateLimit(tpmLimit),
+        rpd: parseRateLimit(rpdLimit),
+      };
       if (channel) {
         return updateChannel({
           id: channel.id,
@@ -138,6 +182,7 @@ function ChannelForm({
           status,
           priority: prio,
           timeout_ms: timeout,
+          rateLimits,
         });
       }
       return createChannel({
@@ -150,6 +195,7 @@ function ChannelForm({
         status,
         priority: prio,
         timeout_ms: timeout,
+        rateLimits,
       });
     },
     onSuccess: (saved) => {
@@ -191,13 +237,20 @@ function ChannelForm({
         next.timeout_ms = "超时需为正整数（毫秒）";
       }
     }
+    next.rpm_limit = rateLimitError(rpmLimit);
+    next.tpm_limit = rateLimitError(tpmLimit);
+    next.rpd_limit = rateLimitError(rpdLimit);
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return Object.values(next).every((v) => v === undefined);
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (isEdit && channel && status !== channel.status) {
+      setStatusConfirmOpen(true);
+      return;
+    }
     mutation.mutate();
   }
 
@@ -219,7 +272,7 @@ function ChannelForm({
             {isEdit ? (
               <Input
                 id="provider"
-                value={`${channel.provider_name || "未知"}（#${channel.provider_id}）`}
+                value={providerDisplay}
                 disabled
               />
             ) : (
@@ -376,6 +429,54 @@ function ChannelForm({
           </div>
 
           <Field>
+            <FieldLabel>渠道级限流（P2-8）</FieldLabel>
+            <div className="grid grid-cols-3 gap-4">
+              <Field data-invalid={!!errors.rpm_limit}>
+                <FieldLabel htmlFor="rpm_limit">RPM</FieldLabel>
+                <Input
+                  id="rpm_limit"
+                  type="number"
+                  min={0}
+                  value={rpmLimit}
+                  onChange={(e) => setRpmLimit(e.target.value)}
+                  placeholder="继承默认"
+                  aria-invalid={!!errors.rpm_limit}
+                />
+                <FieldError>{errors.rpm_limit}</FieldError>
+              </Field>
+              <Field data-invalid={!!errors.tpm_limit}>
+                <FieldLabel htmlFor="tpm_limit">TPM</FieldLabel>
+                <Input
+                  id="tpm_limit"
+                  type="number"
+                  min={0}
+                  value={tpmLimit}
+                  onChange={(e) => setTpmLimit(e.target.value)}
+                  placeholder="继承默认"
+                  aria-invalid={!!errors.tpm_limit}
+                />
+                <FieldError>{errors.tpm_limit}</FieldError>
+              </Field>
+              <Field data-invalid={!!errors.rpd_limit}>
+                <FieldLabel htmlFor="rpd_limit">RPD</FieldLabel>
+                <Input
+                  id="rpd_limit"
+                  type="number"
+                  min={0}
+                  value={rpdLimit}
+                  onChange={(e) => setRpdLimit(e.target.value)}
+                  placeholder="继承默认"
+                  aria-invalid={!!errors.rpd_limit}
+                />
+                <FieldError>{errors.rpd_limit}</FieldError>
+              </Field>
+            </div>
+            <FieldDescription>
+              每分钟请求数 / 每分钟 token 数 / 每日请求数；留空=继承全局默认，0=不限。
+            </FieldDescription>
+          </Field>
+
+          <Field>
             <FieldLabel htmlFor="status">状态</FieldLabel>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger id="status" className="w-full">
@@ -401,6 +502,17 @@ function ChannelForm({
           </Button>
         </DialogFooter>
       </form>
+      {isEdit && channel ? (
+        <StatusChangeConfirmDialog
+          open={statusConfirmOpen}
+          onOpenChange={setStatusConfirmOpen}
+          entityLabel="渠道"
+          entityName={name.trim() || channel.name}
+          enabling={status === "enabled"}
+          pending={mutation.isPending}
+          onConfirm={() => mutation.mutate()}
+        />
+      ) : null}
     </>
   );
 }

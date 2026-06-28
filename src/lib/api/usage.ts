@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 
 // 与后端 usageSummaryDTO 对齐：用量事实 + 请求归属维度。
@@ -26,6 +27,7 @@ export interface UsageSummary {
 export interface UsageListParams {
   page: number;
   pageSize: number;
+  sort?: string;
   userId?: number;
   projectId?: number;
   model?: string;
@@ -39,15 +41,16 @@ export async function listUsage(
   const res = await api.get<{ data: UsageSummary[]; meta: ListMeta }>(
     "/admin/v1/usage",
     {
-      params: {
+      params: buildListQuery({
         page: params.page,
         page_size: params.pageSize,
-        user_id: params.userId || undefined,
-        project_id: params.projectId || undefined,
-        model: params.model || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-      },
+        sort: params.sort,
+        user_id: params.userId,
+        project_id: params.projectId,
+        model: params.model,
+        from: params.from,
+        to: params.to,
+      }),
     },
   );
   return { items: res.data.data, total: res.data.meta.total };

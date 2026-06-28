@@ -27,7 +27,6 @@ import {
   getRadar,
   getTimeseries,
   getTopErrors,
-  type HealthBucket,
   type RadarReport,
   type RangeQuery,
   type RequestPoint,
@@ -65,6 +64,10 @@ import { BreakdownSection } from "@/components/dashboard/breakdown-table/Breakdo
 import { ConfigurableDataTable } from "@/components/data-table";
 import { topErrorsColumns } from "@/components/ops-tables/dashboard-errors-columns";
 import {
+  BAD_CHANNELS_COLUMN_LABELS,
+  badChannelsColumns,
+} from "@/components/detail-tables/dashboard-columns";
+import {
   latencyIntent,
   LATENCY_WARN_MS,
   profitIntent,
@@ -89,15 +92,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { col } from "@/lib/table-columns";
 import {
   ChartContainer,
   ChartLegend,
@@ -125,20 +119,6 @@ function fmtBucket(iso: string, interval: TimeseriesInterval): string {
   }
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
-
-const HEALTH_LABEL: Record<HealthBucket, string> = {
-  healthy: "健康",
-  degraded: "降级",
-  unhealthy: "不健康",
-  no_data: "无数据",
-};
-
-const HEALTH_VARIANT: Record<HealthBucket, "default" | "secondary" | "destructive" | "outline"> = {
-  healthy: "default",
-  degraded: "secondary",
-  unhealthy: "destructive",
-  no_data: "outline",
-};
 
 export function DashboardPage() {
   const { value, setRange, params, bucket, refresh, refreshedAt } =
@@ -348,40 +328,15 @@ function BadChannelsCard({
             区间内暂无异常渠道
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className={col.primary}>渠道</TableHead>
-                <TableHead className={col.badge}>健康</TableHead>
-                <TableHead className={col.percent}>成功率</TableHead>
-                <TableHead className={col.error}>最近错误</TableHead>
-                <TableHead className={col.action}>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.bad_channels.map((c) => (
-                <TableRow key={c.channel_id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={HEALTH_VARIANT[c.bucket]}>
-                      {HEALTH_LABEL[c.bucket]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {formatPercent(c.success_rate)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[10rem] truncate text-xs">
-                    {c.recent_error_code || "—"}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    <Button asChild size="sm" variant="ghost">
-                      <Link to={`/channels?channel_id=${c.channel_id}`}>查看</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <ConfigurableDataTable
+            storageKey="dashboard:bad-channels"
+            data={data.bad_channels}
+            columns={badChannelsColumns()}
+            columnLabels={BAD_CHANNELS_COLUMN_LABELS}
+            layoutMode="content"
+            bordered={false}
+            getRowId={(row) => String(row.channel_id)}
+          />
         )}
       </CardContent>
     </Card>

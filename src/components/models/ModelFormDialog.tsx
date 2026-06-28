@@ -1,8 +1,9 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createModel, updateModel, type Model } from "@/lib/api/models";
 import { apiErrorMessage } from "@/lib/api/client";
+import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -75,6 +76,7 @@ export function ModelFormDialog({
   const [outputPrice, setOutputPrice] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -119,28 +121,33 @@ export function ModelFormDialog({
   });
 
   // 打开时按当前 model 预填（编辑）或清空（新建），并清掉上次的校验/请求状态。
-  // 非受控用法（children 触发）经此回填；受控用法（无触发器）由调用方以 key 重挂载保证初值干净。
+  // 用 effect 而非 onOpenChange：受控用法（ModelRowActions 编辑）通过 open prop 程序化打开，
+  // 不会触发 Dialog 的 onOpenChange，必须在 open 变 true 时主动回填。
+  useEffect(() => {
+    if (!open) return;
+    setModelId(model?.model_id ?? "");
+    setDisplayName(model?.display_name ?? "");
+    setOwnedBy(model?.owned_by ?? "");
+    setStatus(model?.status ?? "enabled");
+    setMaxOutputTokens(
+      model?.max_output_tokens != null ? String(model.max_output_tokens) : "",
+    );
+    setContextWindow(
+      model?.context_window_tokens != null
+        ? String(model.context_window_tokens)
+        : "",
+    );
+    setInputPrice(model?.input_price_usd_per_million_tokens ?? "");
+    setOutputPrice(model?.output_price_usd_per_million_tokens ?? "");
+    setReleaseDate(model?.release_date ?? "");
+    setErrors({});
+    mutation.reset();
+    setStatusConfirmOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, model?.id]);
+
   function handleOpenChange(next: boolean) {
     setOpen(next);
-    if (next) {
-      setModelId(model?.model_id ?? "");
-      setDisplayName(model?.display_name ?? "");
-      setOwnedBy(model?.owned_by ?? "");
-      setStatus(model?.status ?? "enabled");
-      setMaxOutputTokens(
-        model?.max_output_tokens != null ? String(model.max_output_tokens) : "",
-      );
-      setContextWindow(
-        model?.context_window_tokens != null
-          ? String(model.context_window_tokens)
-          : "",
-      );
-      setInputPrice(model?.input_price_usd_per_million_tokens ?? "");
-      setOutputPrice(model?.output_price_usd_per_million_tokens ?? "");
-      setReleaseDate(model?.release_date ?? "");
-      setErrors({});
-      mutation.reset();
-    }
   }
 
   function validate(): boolean {
@@ -169,10 +176,15 @@ export function ModelFormDialog({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (isEdit && model && status !== model.status) {
+      setStatusConfirmOpen(true);
+      return;
+    }
     mutation.mutate();
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent>
@@ -320,5 +332,17 @@ export function ModelFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+    {isEdit && model ? (
+      <StatusChangeConfirmDialog
+        open={statusConfirmOpen}
+        onOpenChange={setStatusConfirmOpen}
+        entityLabel="模型"
+        entityName={displayName.trim() || model.display_name}
+        enabling={status === "enabled"}
+        pending={mutation.isPending}
+        onConfirm={() => mutation.mutate()}
+      />
+    ) : null}
+    </>
   );
 }

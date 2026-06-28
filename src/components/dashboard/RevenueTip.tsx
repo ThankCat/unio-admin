@@ -57,7 +57,7 @@ export function RevenueTip({
   const profitPct = Math.max(0, 1 - costPct);
 
   return (
-    <div className="flex w-72 flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       {/* 顶栏 + 利润 */}
       <div className="flex items-end justify-between gap-3">
         <div>

@@ -149,7 +149,7 @@ function PercentileBars({ latency }: { latency: LatencyStats }) {
 /** 平均延迟卡片悬浮详情。 */
 export function LatencyTip({ latency }: { latency: LatencyStats }) {
   return (
-    <div className="w-80 space-y-3">
+    <div className="w-full space-y-3">
       {/* 顶栏 + 平均值（中性色；告警看 P95 行，避免平均被 P95 阈值误染色） */}
       <div className="flex items-end justify-between gap-3">
         <div>

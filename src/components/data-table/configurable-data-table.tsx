@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "./data-table";
 import { DataTableViewOptions } from "./data-table-view-options";
 import {
+  autoSizeTableLayout,
   clampColumnSizing,
   columnLabelsFromDefs,
   defaultTableLayout,
@@ -27,6 +28,9 @@ export type ConfigurableDataTableProps<TData> = {
   /** 不参与拖拽的列 id；默认 `name`；传 null 则全部可拖 */
   pinnedColumnId?: string | null;
   defaultLayout?: TableLayoutPrefs;
+  /** `fixed` 维持定义列宽；`content` 按当前数据估算默认列宽。 */
+  layoutMode?: "fixed" | "content";
+  getAutoSizeValue?: (row: TData, columnId: string) => unknown;
   sanitizeLayout?: (prefs: TableLayoutPrefs) => TableLayoutPrefs;
   toolbarStart?: ReactNode;
   toolbarEnd?: ReactNode;
@@ -84,6 +88,8 @@ export function ConfigurableDataTable<TData>({
   columnLabels: columnLabelsProp,
   pinnedColumnId = "name",
   defaultLayout: defaultLayoutProp,
+  layoutMode = "fixed",
+  getAutoSizeValue,
   sanitizeLayout,
   toolbarStart,
   toolbarEnd,
@@ -97,10 +103,18 @@ export function ConfigurableDataTable<TData>({
   tableClassName,
   className,
 }: ConfigurableDataTableProps<TData>) {
-  const defaultLayout = useMemo(
-    () => defaultLayoutProp ?? defaultTableLayout(columns),
-    [columns, defaultLayoutProp],
+  const columnLabels = useMemo(
+    () => columnLabelsProp ?? columnLabelsFromDefs(columns),
+    [columnLabelsProp, columns],
   );
+
+  const defaultLayout = useMemo(() => {
+    if (defaultLayoutProp) return defaultLayoutProp;
+    if (layoutMode === "content") {
+      return autoSizeTableLayout(columns, data, columnLabels, getAutoSizeValue);
+    }
+    return defaultTableLayout(columns);
+  }, [columnLabels, columns, data, defaultLayoutProp, getAutoSizeValue, layoutMode]);
 
   const sanitizePrefs = useCallback(
     (prefs: TableLayoutPrefs) => {
@@ -125,11 +139,6 @@ export function ConfigurableDataTable<TData>({
     setColumnSizing,
     resetLayout,
   } = usePersistedTableState(storageKey, defaultLayout, sanitizePrefs);
-
-  const columnLabels = useMemo(
-    () => columnLabelsProp ?? columnLabelsFromDefs(columns),
-    [columnLabelsProp, columns],
-  );
 
   const table = useReactTable({
     data,

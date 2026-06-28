@@ -2,7 +2,7 @@ import { api } from "@/lib/api/client";
 import type { ListMeta, ListParams, Page } from "@/lib/api/types";
 
 // 与后端 channelDTO 对齐；不含 credential（凭据只写不回）。
-// provider_name 仅分页列表场景由后端 JOIN 带出。
+// provider_name 列表与单条读取均由后端补全；编辑表单仍会用 providers 列表兜底。
 export interface Channel {
   id: number;
   provider_id: number;
@@ -14,8 +14,19 @@ export interface Channel {
   status: string;
   priority: number;
   timeout_ms: number | null;
+  // 渠道级限流（P2-8）：null=继承全局默认，0=不限，>0=具体上限（每分钟请求/每分钟 token/每日请求）。
+  rpm_limit: number | null;
+  tpm_limit: number | null;
+  rpd_limit: number | null;
   created_at: string;
   updated_at: string;
+}
+
+// 限流三维入参（P2-8）：null=继承全局默认，0=不限，>0=具体上限。
+export interface RateLimitsInput {
+  rpm: number | null;
+  tpm: number | null;
+  rpd: number | null;
 }
 
 export interface ChannelListParams extends ListParams {
@@ -58,12 +69,18 @@ export interface CreateChannelInput {
   status: string;
   priority: number;
   timeout_ms: number | null;
+  // 可选渠道级限流；省略表示三维全继承全局默认。
+  rateLimits?: RateLimitsInput;
 }
 
-export async function createChannel(
-  input: CreateChannelInput,
-): Promise<Channel> {
-  const res = await api.post<{ data: Channel }>("/admin/v1/channels", input);
+export async function createChannel({
+  rateLimits,
+  ...input
+}: CreateChannelInput): Promise<Channel> {
+  const res = await api.post<{ data: Channel }>("/admin/v1/channels", {
+    ...input,
+    rate_limits: rateLimits ?? undefined,
+  });
   return res.data.data;
 }
 
@@ -91,16 +108,19 @@ export interface UpdateChannelInput {
   status: string;
   priority: number;
   timeout_ms: number | null;
+  // 渠道级限流；省略表示不变，传对象即原子替换三维。
+  rateLimits?: RateLimitsInput;
 }
 
 export async function updateChannel({
   id,
+  rateLimits,
   ...body
 }: UpdateChannelInput): Promise<Channel> {
-  const res = await api.patch<{ data: Channel }>(
-    `/admin/v1/channels/${id}`,
-    body,
-  );
+  const res = await api.patch<{ data: Channel }>(`/admin/v1/channels/${id}`, {
+    ...body,
+    rate_limits: rateLimits ?? undefined,
+  });
   return res.data.data;
 }
 

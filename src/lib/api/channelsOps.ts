@@ -1,6 +1,7 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
-import type { HealthBucket, LatencyStats, RangeQuery } from "@/lib/api/dashboard";
+import type { HealthBucket, LatencyStats, RangeQuery, SuccessBucket } from "@/lib/api/dashboard";
 
 // §3.3 渠道作战台只读运维聚合（与后端 channels_ops DTO 对齐）。
 
@@ -34,6 +35,7 @@ export interface ChannelOpsRow {
   id: number;
   name: string;
   status: string;
+  created_at: string;
   protocol: string;
   adapter_key: string;
   base_url: string;
@@ -101,6 +103,7 @@ export interface ChannelOpsRoute {
 export interface ChannelsOpsTableParams extends RangeQuery {
   page: number;
   page_size: number;
+  sort?: string;
   status?: string;
   provider_id?: number;
   search?: string;
@@ -121,7 +124,7 @@ export async function getChannelsOpsTable(
 ): Promise<Page<ChannelOpsRow>> {
   const res = await api.get<{ data: ChannelOpsRow[]; meta: ListMeta }>(
     "/admin/v1/channels/ops",
-    { params },
+    { params: buildListQuery(params) },
   );
   return { items: res.data.data, total: res.data.meta.total };
 }
@@ -132,6 +135,17 @@ export async function getChannelOpsDetail(
 ): Promise<ChannelOpsDetail> {
   const res = await api.get<{ data: ChannelOpsDetail }>(
     `/admin/v1/channels/${id}/ops/detail`,
+    { params },
+  );
+  return res.data.data;
+}
+
+export async function getChannelOpsSuccessBuckets(
+  id: number,
+  params: RangeQuery,
+): Promise<SuccessBucket[]> {
+  const res = await api.get<{ data: SuccessBucket[] }>(
+    `/admin/v1/channels/${id}/ops/success-buckets`,
     { params },
   );
   return res.data.data;

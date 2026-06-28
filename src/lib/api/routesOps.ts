@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 import type { RangeQuery } from "@/lib/api/dashboard";
 
@@ -103,6 +104,7 @@ export interface RouteOpsRequest {
 export interface RoutesOpsTableParams extends RangeQuery {
   page: number;
   page_size: number;
+  sort?: string;
   status?: string;
   search?: string;
 }
@@ -113,7 +115,9 @@ export async function getRoutesOpsSummary(params: RangeQuery): Promise<RoutesOps
 }
 
 export async function getRoutesOpsTable(params: RoutesOpsTableParams): Promise<Page<RouteOpsRow>> {
-  const res = await api.get<{ data: RouteOpsRow[]; meta: ListMeta }>("/admin/v1/routes/ops", { params });
+  const res = await api.get<{ data: RouteOpsRow[]; meta: ListMeta }>("/admin/v1/routes/ops", {
+    params: buildListQuery(params),
+  });
   return { items: res.data.data, total: res.data.meta.total };
 }
 

@@ -7,6 +7,7 @@ import {
   type Provider,
 } from "@/lib/api/providers";
 import { apiErrorMessage } from "@/lib/api/client";
+import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -58,6 +59,7 @@ export function ProviderFormDialog({
   const [name, setName] = useState("");
   const [status, setStatus] = useState("enabled");
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -92,6 +94,7 @@ export function ProviderFormDialog({
       setStatus(provider?.status ?? "enabled");
       setErrors({});
       mutation.reset();
+      setStatusConfirmOpen(false);
     }
   }
 
@@ -111,10 +114,15 @@ export function ProviderFormDialog({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (isEdit && provider && status !== provider.status) {
+      setStatusConfirmOpen(true);
+      return;
+    }
     mutation.mutate({ slug: slug.trim(), name: name.trim(), status });
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent>
@@ -191,5 +199,19 @@ export function ProviderFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+    {isEdit && provider ? (
+      <StatusChangeConfirmDialog
+        open={statusConfirmOpen}
+        onOpenChange={setStatusConfirmOpen}
+        entityLabel="服务商"
+        entityName={name.trim() || provider.name}
+        enabling={status === "enabled"}
+        pending={mutation.isPending}
+        onConfirm={() =>
+          mutation.mutate({ slug: slug.trim(), name: name.trim(), status })
+        }
+      />
+    ) : null}
+    </>
   );
 }

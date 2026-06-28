@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { FlaskConicalIcon } from "lucide-react";
 import { triggerSync, type SyncResult } from "@/lib/api/capability";
 import { apiErrorMessage } from "@/lib/api/client";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,6 +24,7 @@ export function ModelCatalogSyncDialog({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
+  const [executeConfirmOpen, setExecuteConfirmOpen] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (dryRun: boolean) => triggerSync(dryRun),
@@ -30,6 +32,7 @@ export function ModelCatalogSyncDialog({ children }: { children: ReactNode }) {
       setResult(res);
       toast.success(res.dry_run ? "预演完成" : "同步完成");
       if (!res.dry_run) {
+        setExecuteConfirmOpen(false);
         queryClient.invalidateQueries({ queryKey: ["model-catalog"] });
         queryClient.invalidateQueries({ queryKey: ["system-sync-jobs"] });
         queryClient.invalidateQueries({ queryKey: ["capability-sync-jobs"] });
@@ -41,6 +44,7 @@ export function ModelCatalogSyncDialog({ children }: { children: ReactNode }) {
   const busy = mutation.isPending;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -65,7 +69,7 @@ export function ModelCatalogSyncDialog({ children }: { children: ReactNode }) {
               )}
               预演（dry-run）
             </Button>
-            <Button disabled={busy} onClick={() => mutation.mutate(false)}>
+            <Button disabled={busy} onClick={() => setExecuteConfirmOpen(true)}>
               {busy ? <Spinner data-icon="inline-start" /> : null}
               执行同步
             </Button>
@@ -112,6 +116,20 @@ export function ModelCatalogSyncDialog({ children }: { children: ReactNode }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ConfirmActionDialog
+      open={executeConfirmOpen}
+      onOpenChange={(o) => {
+        if (!o && !busy) setExecuteConfirmOpen(false);
+      }}
+      title="执行 models.dev 同步"
+      description="确认执行同步？将拉取上游参考数据并写入本页目录，建议先预演确认变更。"
+      confirmLabel="确认同步"
+      destructive
+      pending={busy}
+      onConfirm={() => mutation.mutate(false)}
+    />
+    </>
   );
 }
 

@@ -1,17 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { GaugeIcon } from "lucide-react";
 import { listUsage } from "@/lib/api/usage";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { ConfigurableDataTable, TableToolbarSearch } from "@/components/data-table";
-import { usageListColumns } from "@/components/ops-tables/usage-columns";
+import { useServerList } from "@/hooks/useServerList";
+import { ServerDataTable } from "@/components/openstatus-table";
+import type { FilterChip } from "@/components/openstatus-table";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  usageOsColumns,
+  USAGE_OS_COLUMN_LABELS,
+} from "@/components/openstatus-table/usage-os-columns";
 import { Input } from "@/components/ui/input";
 import {
   Empty,
@@ -21,21 +19,22 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { TablePagination } from "@/components/common/TablePagination";
 
 const PAGE_SIZE = 20;
 
 export function UsagePage() {
   const [modelInput, setModelInput] = useState("");
   const [userIdInput, setUserIdInput] = useState("");
-  const [page, setPage] = useState(1);
+  const { page, setPage, sorting, setSorting, sort } = useServerList({
+    defaultSort: { id: "created_at", desc: true },
+  });
 
   const model = useDebouncedValue(modelInput.trim(), 300);
   const userId = useDebouncedValue(parsePositiveInt(userIdInput), 300);
 
   const query = useQuery({
-    queryKey: ["usage", { model, userId, page }],
-    queryFn: () => listUsage({ page, pageSize: PAGE_SIZE, model, userId }),
+    queryKey: ["usage", { model, userId, page, sort }],
+    queryFn: () => listUsage({ page, pageSize: PAGE_SIZE, sort, model, userId }),
     placeholderData: keepPreviousData,
   });
 
@@ -43,73 +42,65 @@ export function UsagePage() {
   const total = query.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (page > pageCount) {
-    setPage(pageCount);
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount, setPage]);
+
+  function reset<T>(setter: (v: T) => void) {
+    return (value: T) => {
+      setter(value);
+      setPage(1);
+    };
   }
 
-  function changeModel(next: string) {
-    setModelInput(next);
-    setPage(1);
-  }
-
-  function changeUserId(next: string) {
-    setUserIdInput(next);
-    setPage(1);
-  }
+  const chips: FilterChip[] = [];
+  if (model) chips.push({ id: "model", label: `模型 · ${model}`, onRemove: () => reset(setModelInput)("") });
+  if (userId != null) chips.push({ id: "user", label: `用户 · ${userId}`, onRemove: () => reset(setUserIdInput)("") });
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle>用量</CardTitle>
-        <CardDescription>逐请求的 token 用量事实（只读）</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {query.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{query.error.message}</AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            <ConfigurableDataTable
-              storageKey="usage:list"
-              data={items}
-              columns={usageListColumns()}
-              loading={query.isPending}
-              pinnedColumnId="request_id"
-              bordered={false}
-              emptyContent={<UsageEmpty />}
-              getRowId={(r) => String(r.id)}
-              tableClassName={query.isFetching && !query.isPending ? "opacity-60" : undefined}
-              toolbarStart={
-                <>
-                  <TableToolbarSearch
-                    value={modelInput}
-                    onChange={changeModel}
-                    placeholder="按模型筛选"
-                    className="max-w-xs w-full"
-                  />
-                  <Input
-                    placeholder="用户 ID"
-                    value={userIdInput}
-                    onChange={(e) => changeUserId(e.target.value)}
-                    inputMode="numeric"
-                    className="w-32"
-                  />
-                </>
-              }
+    <div className="flex flex-col gap-4">
+      {query.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>加载失败</AlertTitle>
+          <AlertDescription>{query.error.message}</AlertDescription>
+        </Alert>
+      ) : (
+        <ServerDataTable
+          storageKey="usage"
+          columns={usageOsColumns()}
+          data={items}
+          columnLabels={USAGE_OS_COLUMN_LABELS}
+          total={total}
+          page={page}
+          pageCount={pageCount}
+          onPageChange={setPage}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          getRowId={(r) => String(r.id)}
+          loading={query.isPending}
+          refetching={query.isFetching && !query.isPending}
+          emptyContent={<UsageEmpty />}
+          searchValue={modelInput}
+          onSearchChange={reset(setModelInput)}
+          searchPlaceholder="按模型筛选"
+          chips={chips}
+          onClearChips={() => {
+            setModelInput("");
+            setUserIdInput("");
+            setPage(1);
+          }}
+          toolbarFilters={
+            <Input
+              placeholder="用户 ID"
+              value={userIdInput}
+              onChange={(e) => reset(setUserIdInput)(e.target.value)}
+              inputMode="numeric"
+              className="h-8 w-28"
             />
-
-            <TablePagination
-              page={page}
-              pageCount={pageCount}
-              total={total}
-              onPageChange={setPage}
-            />
-          </>
-        )}
-      </CardContent>
-    </Card>
+          }
+        />
+      )}
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -13,12 +13,17 @@ import { apiErrorMessage } from "@/lib/api/client";
 import { useRangeQuery } from "@/hooks/useRangeQuery";
 import { RangeFilter } from "@/components/common/RangeFilter";
 import { MetricCard, MetricGrid } from "@/components/common/MetricCard";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { ConfigurableDataTable } from "@/components/data-table";
 import { apiKeyOpsColumns } from "@/components/ops-tables/api-keys-columns";
 import { CreateApiKeyDialog } from "@/components/customer/CreateApiKeyDialog";
 import { formatInt } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+type PendingKeyAction =
+  | { type: "toggle"; key: ApiKeyOpsRow }
+  | { type: "revoke"; key: ApiKeyOpsRow };
 
 export function ApiKeysPage() {
   const { projectId: projectIdParam } = useParams();
@@ -40,26 +45,38 @@ export function ApiKeysPage() {
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ["api-keys", projectId] });
 
+  const [pendingAction, setPendingAction] = useState<PendingKeyAction | null>(null);
+
   const toggle = useMutation({
     mutationFn: (k: ApiKeyOpsRow) => updateApiKey({ id: k.id, disabled: k.status !== "disabled" ? true : false }),
-    onSuccess: () => { toast.success("已更新 Key"); refetch(); },
+    onSuccess: () => { toast.success("已更新 Key"); refetch(); setPendingAction(null); },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
   const revoke = useMutation({
     mutationFn: (id: number) => revokeApiKey(id),
-    onSuccess: () => { toast.success("已吊销 Key"); refetch(); },
+    onSuccess: () => { toast.success("已吊销 Key"); refetch(); setPendingAction(null); },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
+
+  const mutating = toggle.isPending || revoke.isPending;
+
+  function confirmPending() {
+    if (!pendingAction) return;
+    if (pendingAction.type === "toggle") toggle.mutate(pendingAction.key);
+    else revoke.mutate(pendingAction.key.id);
+  }
 
   const s = summary.data;
   const columns = useMemo(
     () =>
       apiKeyOpsColumns({
-        onToggle: (k) => toggle.mutate(k),
-        onRevoke: (id) => revoke.mutate(id),
+        onToggle: (k) => setPendingAction({ type: "toggle", key: k }),
+        onRevoke: (k) => setPendingAction({ type: "revoke", key: k }),
       }),
-    [toggle.mutate, revoke.mutate],
+    [],
   );
+
+  const disabling = pendingAction?.type === "toggle" && pendingAction.key.status !== "disabled";
 
   return (
     <div className="flex flex-col gap-5">
@@ -102,6 +119,33 @@ export function ApiKeysPage() {
           tableClassName={table.isFetching && !table.isPending ? "opacity-60" : undefined}
         />
       )}
+
+      <ConfirmActionDialog
+        open={pendingAction != null}
+        onOpenChange={(o) => { if (!o && !mutating) setPendingAction(null); }}
+        title={
+          pendingAction?.type === "revoke"
+            ? "吊销 API Key"
+            : disabling
+              ? "停用 API Key"
+              : "启用 API Key"
+        }
+        description={
+          pendingAction
+            ? pendingAction.type === "revoke"
+              ? `确认吊销「${pendingAction.key.name}」？吊销不可恢复，该 Key 将立即失效，使用它的调用会全部失败。`
+              : disabling
+                ? `确认停用「${pendingAction.key.name}」？停用后该 Key 暂停服务，可随时重新启用。`
+                : `确认启用「${pendingAction.key.name}」？启用后该 Key 恢复正常调用。`
+            : undefined
+        }
+        confirmLabel={
+          pendingAction?.type === "revoke" ? "确认吊销" : disabling ? "确认停用" : "确认启用"
+        }
+        destructive={pendingAction?.type === "revoke" || disabling}
+        pending={mutating}
+        onConfirm={confirmPending}
+      />
     </div>
   );
 }

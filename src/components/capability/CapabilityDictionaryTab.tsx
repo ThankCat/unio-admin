@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import {
   createCapabilityKey,
   deleteCapabilityKey,
@@ -18,6 +18,12 @@ import {
   protocolScopeLabel,
   type ProtocolScopeFilter,
 } from "@/lib/capability/protocolScope";
+import { ConfigurableDataTable } from "@/components/data-table";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
+import {
+  CAPABILITY_DICTIONARY_COLUMN_LABELS,
+  capabilityDictionaryColumns,
+} from "@/components/detail-tables/capability-dictionary-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -37,20 +43,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { col } from "@/lib/table-columns";
 
 export function CapabilityDictionaryTab() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CapabilityKeyDef | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CapabilityKeyDef | null>(null);
   const [scopeFilter, setScopeFilter] = useState<ProtocolScopeFilter>("all");
 
   const keysQuery = useQuery({
@@ -76,6 +74,7 @@ export function CapabilityDictionaryTab() {
     onSuccess: () => {
       toast.success("已删除能力 key");
       queryClient.invalidateQueries({ queryKey: ["capability-keys"] });
+      setPendingDelete(null);
     },
     onError: (err) => {
       if (apiErrorStatus(err) === 409) {
@@ -86,23 +85,24 @@ export function CapabilityDictionaryTab() {
     },
   });
 
+  const columns = useMemo(
+    () =>
+      capabilityDictionaryColumns({
+        onEdit: (row) => {
+          setEditing(row);
+          setFormOpen(true);
+        },
+        onDelete: (row) => setPendingDelete(row),
+      }),
+    [],
+  );
+
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
   }
 
-  function openEdit(row: CapabilityKeyDef) {
-    setEditing(row);
-    setFormOpen(true);
-  }
-
   function handleFormOpenChange(open: boolean) {
-    if (open) {
-      // 打开时灌入编辑态/空表单
-      if (editing) {
-        /* reset handled inside dialog via editing prop */
-      }
-    }
     setFormOpen(open);
     if (!open) setEditing(null);
   }
@@ -151,78 +151,20 @@ export function CapabilityDictionaryTab() {
                 {label}
               </Button>
             ))}
-            <span className="text-muted-foreground ml-auto text-xs">
-              共 {rows.length} 项
-            </span>
           </div>
 
-          <div className="overflow-hidden rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className={col.primaryLg}>key</TableHead>
-                  <TableHead className={col.text}>协议归属</TableHead>
-                  <TableHead className={col.text}>domain</TableHead>
-                  <TableHead className={col.textLg}>展示名</TableHead>
-                  <TableHead className="hidden md:table-cell">描述</TableHead>
-                  <TableHead className={col.numSm}>排序</TableHead>
-                  <TableHead className={col.actionLg}>操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground h-24 text-left">
-                      暂无数据
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
-                    <TableRow key={row.key}>
-                      <TableCell className="font-mono text-sm">{row.key}</TableCell>
-                      <TableCell className="text-sm">
-                        {protocolScopeLabel(normalizeProtocolScope(row.protocol_scope))}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {row.domain}
-                      </TableCell>
-                      <TableCell>{row.display_name}</TableCell>
-                      <TableCell className="text-muted-foreground hidden max-w-md truncate text-xs md:table-cell">
-                        {row.description}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {row.sort_order}
-                      </TableCell>
-                      <TableCell >
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="编辑"
-                            onClick={() => openEdit(row)}
-                          >
-                            <PencilIcon />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="删除"
-                            onClick={() => {
-                              if (confirm(`确定删除 ${row.key}？`)) {
-                                deleteMutation.mutate(row.key);
-                              }
-                            }}
-                          >
-                            <Trash2Icon />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ConfigurableDataTable
+            storageKey="capability:dictionary"
+            data={rows}
+            columns={columns}
+            columnLabels={CAPABILITY_DICTIONARY_COLUMN_LABELS}
+            layoutMode="content"
+            bordered
+            getRowId={(row) => row.key}
+            toolbarStart={
+              <span className="text-muted-foreground text-xs">共 {rows.length} 项</span>
+            }
+          />
         </div>
       )}
 
@@ -234,6 +176,25 @@ export function CapabilityDictionaryTab() {
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["capability-keys"] });
           setFormOpen(false);
+        }}
+      />
+
+      <ConfirmActionDialog
+        open={pendingDelete != null}
+        onOpenChange={(o) => {
+          if (!o && !deleteMutation.isPending) setPendingDelete(null);
+        }}
+        title="删除能力 key"
+        description={
+          pendingDelete
+            ? `确认删除「${pendingDelete.key}」？若已被模型引用将无法删除，请改为标记 deprecated。`
+            : undefined
+        }
+        confirmLabel="确认删除"
+        destructive
+        pending={deleteMutation.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMutation.mutate(pendingDelete.key);
         }}
       />
     </div>

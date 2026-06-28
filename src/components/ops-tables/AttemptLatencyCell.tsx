@@ -2,11 +2,8 @@ import type { LatencyStats } from "@/lib/api/dashboard";
 import { LatencyTip } from "@/components/dashboard/LatencyTip";
 import { formatLatencyMs } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { TipHoverCardContent } from "@/components/dashboard/TipHoverCardContent";
+import { HoverCard, HoverCardTrigger } from "@/components/ui/hover-card";
 
 export function AttemptLatencyCell({
   latency,
@@ -31,12 +28,9 @@ export function AttemptLatencyCell({
           {formatLatencyMs(latency.avg)}
         </button>
       </HoverCardTrigger>
-      <HoverCardContent
-        align="end"
-        className="w-auto max-w-[calc(100vw-2rem)] p-3"
-      >
+      <TipHoverCardContent align="end">
         <LatencyTip latency={latency} />
-      </HoverCardContent>
+      </TipHoverCardContent>
     </HoverCard>
   );
 }

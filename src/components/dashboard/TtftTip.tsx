@@ -150,7 +150,7 @@ function PercentileBars({ ttft }: { ttft: TtftStats }) {
 export function TtftTip({ ttft }: { ttft: TtftStats }) {
   if (!ttft.has_data) {
     return (
-      <div className="w-72 space-y-2">
+      <div className="w-full space-y-2">
         <div className="text-sm font-semibold leading-tight">平均 TTFT</div>
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           暂无首 token 时间数据。仅已开始返回内容（多为流式）的请求会记录{" "}
@@ -164,7 +164,7 @@ export function TtftTip({ ttft }: { ttft: TtftStats }) {
   }
 
   return (
-    <div className="w-80 space-y-3">
+    <div className="w-full space-y-3">
       {/* 顶栏 + 平均值（中性色；告警看 P95 行，避免平均被 P95 阈值误染色） */}
       <div className="flex items-end justify-between gap-3">
         <div>

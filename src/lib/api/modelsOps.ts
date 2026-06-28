@@ -1,6 +1,7 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
-import type { RangeQuery } from "@/lib/api/dashboard";
+import type { LatencyStats, RangeQuery } from "@/lib/api/dashboard";
 
 // §3.4 模型商品控制台只读运维聚合（与后端 models_ops DTO 对齐）。
 
@@ -27,6 +28,7 @@ export interface ModelOpsRow {
   display_name: string;
   owned_by: string;
   status: string;
+  created_at: string;
   bindings_total: number;
   bindings_available: number;
   has_price: boolean;
@@ -34,7 +36,7 @@ export interface ModelOpsRow {
   request_total: number;
   request_succeeded: number;
   success_rate: number;
-  latency_p95: number;
+  latency: LatencyStats;
   revenue_usd: string;
   margin_usd: string;
   margin_rate: number;
@@ -85,6 +87,7 @@ export interface ModelOpsRequest {
 export interface ModelsOpsTableParams extends RangeQuery {
   page: number;
   page_size: number;
+  sort?: string;
   status?: string;
   search?: string;
 }
@@ -104,7 +107,7 @@ export async function getModelsOpsTable(
 ): Promise<Page<ModelOpsRow>> {
   const res = await api.get<{ data: ModelOpsRow[]; meta: ListMeta }>(
     "/admin/v1/models/ops",
-    { params },
+    { params: buildListQuery(params) },
   );
   return { items: res.data.data, total: res.data.meta.total };
 }

@@ -1,0 +1,121 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { EllipsisIcon, EyeIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { getChannel, updateChannel } from "@/lib/api/channels";
+import { apiErrorMessage } from "@/lib/api/client";
+import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
+import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
+import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
+import { ChannelPricesDialog } from "@/components/channels/ChannelPricesDialog";
+import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
+import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import {
+  HoverDropdownMenu,
+  HoverDropdownMenuContent,
+  HoverDropdownMenuTrigger,
+} from "@/components/ui/hover-dropdown-menu";
+
+export function ChannelRowActions({ channelId }: { channelId: number }) {
+  const queryClient = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
+  const [pricesOpen, setPricesOpen] = useState(false);
+  const [credOpen, setCredOpen] = useState(false);
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
+
+  const needChannel =
+    editOpen || modelsOpen || pricesOpen || credOpen || menuOpen || statusConfirmOpen;
+  const channelQ = useQuery({
+    queryKey: ["channel", channelId],
+    queryFn: () => getChannel(channelId),
+    enabled: needChannel,
+  });
+
+  const channel = channelQ.data;
+
+  const statusMutation = useMutation({
+    mutationFn: updateChannel,
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channel", channelId] });
+      toast.success(vars.status === "enabled" ? "已启用" : "已停用");
+      setStatusConfirmOpen(false);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  function openDialog(setter: (open: boolean) => void) {
+    setMenuOpen(false);
+    setter(true);
+  }
+
+  function requestStatusChange() {
+    if (!channel) return;
+    setMenuOpen(false);
+    setStatusConfirmOpen(true);
+  }
+
+  function confirmStatusChange() {
+    if (!channel) return;
+    const enabling = channel.status !== "enabled";
+    statusMutation.mutate({
+      id: channel.id,
+      name: channel.name,
+      base_url: channel.base_url,
+      status: enabling ? "enabled" : "disabled",
+      priority: channel.priority,
+      timeout_ms: channel.timeout_ms,
+    });
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+        <Button asChild variant="ghost" size="icon-sm" aria-label="查看">
+          <Link to={`/channels/${channelId}`}>
+            <EyeIcon />
+          </Link>
+        </Button>
+
+        <HoverDropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <HoverDropdownMenuTrigger asChild onOpen={() => setMenuOpen(true)}>
+            <Button variant="ghost" size="icon-sm" aria-label="更多">
+              <EllipsisIcon />
+            </Button>
+          </HoverDropdownMenuTrigger>
+          <HoverDropdownMenuContent align="end" className="min-w-36">
+            <DropdownMenuItem onClick={() => openDialog(setEditOpen)}>编辑</DropdownMenuItem>
+            <DropdownMenuItem disabled={!channel} onClick={requestStatusChange}>
+              {channel?.status === "enabled" ? "停用" : "启用"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openDialog(setModelsOpen)}>管理模型</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openDialog(setPricesOpen)}>价格</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openDialog(setCredOpen)}>轮换凭据</DropdownMenuItem>
+          </HoverDropdownMenuContent>
+        </HoverDropdownMenu>
+      </div>
+
+      {channel ? (
+        <>
+          <ChannelFormDialog open={editOpen} onOpenChange={setEditOpen} channel={channel} />
+          <ChannelModelsDialog open={modelsOpen} onOpenChange={setModelsOpen} channel={channel} />
+          <ChannelPricesDialog open={pricesOpen} onOpenChange={setPricesOpen} channel={channel} />
+          <RotateCredentialDialog open={credOpen} onOpenChange={setCredOpen} channel={channel} />
+          <StatusChangeConfirmDialog
+            open={statusConfirmOpen}
+            onOpenChange={setStatusConfirmOpen}
+            entityLabel="渠道"
+            entityName={channel.name}
+            enabling={channel.status !== "enabled"}
+            pending={statusMutation.isPending}
+            onConfirm={confirmStatusChange}
+          />
+        </>
+      ) : null}
+    </>
+  );
+}

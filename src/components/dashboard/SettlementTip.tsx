@@ -70,7 +70,7 @@ export function SettlementTip({ settlement }: { settlement: Settlement }) {
   const { billing_exceptions: billing, settlement_backlog: backlog } = settlement;
 
   return (
-    <div className="flex w-72 flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <div>
         <div className="text-sm font-semibold leading-tight">结算异常</div>
         <div className="text-muted-foreground mt-0.5 text-[11px]">

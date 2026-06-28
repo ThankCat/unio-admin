@@ -16,6 +16,7 @@ import {
 import { listAllModels } from "@/lib/api/models";
 import { type Channel } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -222,6 +223,10 @@ function AddBindingForm({
   );
 }
 
+type BindingPendingAction =
+  | { type: "unbind" }
+  | { type: "toggle"; next: "enabled" | "disabled" };
+
 function BindingRow({
   channelId,
   binding,
@@ -232,6 +237,9 @@ function BindingRow({
   onChanged: () => void;
 }) {
   const [draft, setDraft] = useState(binding.upstream_model);
+  const [pendingAction, setPendingAction] = useState<BindingPendingAction | null>(
+    null,
+  );
 
   const updateMutation = useMutation({
     mutationFn: (vars: { upstream_model: string; status: string }) =>
@@ -241,7 +249,10 @@ function BindingRow({
         upstream_model: vars.upstream_model,
         status: vars.status,
       }),
-    onSuccess: () => onChanged(),
+    onSuccess: () => {
+      setPendingAction(null);
+      onChanged();
+    },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
@@ -249,6 +260,7 @@ function BindingRow({
     mutationFn: () => deleteChannelModel(channelId, binding.model_id),
     onSuccess: () => {
       toast.success(`已移除「${binding.model_external_id}」`);
+      setPendingAction(null);
       onChanged();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -258,6 +270,19 @@ function BindingRow({
   const trimmed = draft.trim();
   const dirty = trimmed !== "" && trimmed !== binding.upstream_model;
   const busy = updateMutation.isPending || deleteMutation.isPending;
+  const disabling = pendingAction?.type === "toggle" && pendingAction.next === "disabled";
+
+  function confirmPending() {
+    if (!pendingAction) return;
+    if (pendingAction.type === "unbind") {
+      deleteMutation.mutate();
+    } else {
+      updateMutation.mutate({
+        upstream_model: binding.upstream_model,
+        status: pendingAction.next,
+      });
+    }
+  }
 
   return (
     <li className="flex flex-wrap items-center gap-3 p-3">
@@ -298,10 +323,7 @@ function BindingRow({
         checked={enabled}
         disabled={busy}
         onCheckedChange={(next) =>
-          updateMutation.mutate({
-            upstream_model: binding.upstream_model,
-            status: next ? "enabled" : "disabled",
-          })
+          setPendingAction({ type: "toggle", next: next ? "enabled" : "disabled" })
         }
         aria-label={`切换 ${binding.model_external_id} 状态`}
       />
@@ -312,10 +334,41 @@ function BindingRow({
         variant="ghost"
         aria-label="移除绑定"
         disabled={busy}
-        onClick={() => deleteMutation.mutate()}
+        onClick={() => setPendingAction({ type: "unbind" })}
       >
         <Trash2Icon className="text-destructive" />
       </Button>
+
+      <ConfirmActionDialog
+        open={pendingAction != null}
+        onOpenChange={(o) => {
+          if (!o && !busy) setPendingAction(null);
+        }}
+        title={
+          pendingAction?.type === "unbind"
+            ? "解绑模型"
+            : disabling
+              ? "停用绑定"
+              : "启用绑定"
+        }
+        description={
+          pendingAction?.type === "unbind"
+            ? `确认解绑模型「${binding.model_external_id}」？解绑后该渠道将不再提供此模型，已配置的渠道-模型价不受影响。`
+            : disabling
+              ? `确认停用绑定「${binding.model_external_id}」？停用后该渠道暂停提供此模型，可随时重新启用。`
+              : `确认启用绑定「${binding.model_external_id}」？启用后该渠道恢复提供此模型。`
+        }
+        confirmLabel={
+          pendingAction?.type === "unbind"
+            ? "确认解绑"
+            : disabling
+              ? "确认停用"
+              : "确认启用"
+        }
+        destructive={pendingAction?.type === "unbind" || disabling}
+        pending={busy}
+        onConfirm={confirmPending}
+      />
     </li>
   );
 }

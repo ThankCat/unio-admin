@@ -15,19 +15,36 @@ const DashboardPage = lazy(() =>
 const ProvidersPage = lazy(() =>
   import("@/pages/ProvidersPage").then((m) => ({ default: m.ProvidersPage })),
 );
+const ProviderDetailPage = lazy(() =>
+  import("@/pages/ProviderDetailPage").then((m) => ({ default: m.ProviderDetailPage })),
+);
 const ChannelsPage = lazy(() =>
   import("@/pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
 );
+const ChannelDetailPage = lazy(() =>
+  import("@/pages/ChannelDetailPage").then((m) => ({ default: m.ChannelDetailPage })),
+);
 const ModelsPage = lazy(() =>
   import("@/pages/ModelsPage").then((m) => ({ default: m.ModelsPage })),
+);
+const ModelDetailPage = lazy(() =>
+  import("@/pages/ModelDetailPage").then((m) => ({ default: m.ModelDetailPage })),
 );
 const ModelCatalogPage = lazy(() =>
   import("@/pages/ModelCatalogPage").then((m) => ({
     default: m.ModelCatalogPage,
   })),
 );
+const ModelCatalogRedirect = lazy(() =>
+  import("@/pages/ModelCatalogPage").then((m) => ({
+    default: m.ModelCatalogRedirect,
+  })),
+);
 const RoutesPage = lazy(() =>
   import("@/pages/RoutesPage").then((m) => ({ default: m.RoutesPage })),
+);
+const RouteDetailPage = lazy(() =>
+  import("@/pages/RouteDetailPage").then((m) => ({ default: m.RouteDetailPage })),
 );
 const CapabilityPage = lazy(() =>
   import("@/pages/CapabilityPage").then((m) => ({ default: m.CapabilityPage })),
@@ -52,8 +69,14 @@ const SystemPage = lazy(() =>
 const UsersPage = lazy(() =>
   import("@/pages/UsersPage").then((m) => ({ default: m.UsersPage })),
 );
+const UserDetailPage = lazy(() =>
+  import("@/pages/UserDetailPage").then((m) => ({ default: m.UserDetailPage })),
+);
 const ProjectsPage = lazy(() =>
   import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })),
+);
+const ProjectDetailPage = lazy(() =>
+  import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage })),
 );
 const ApiKeysPage = lazy(() =>
   import("@/pages/ApiKeysPage").then((m) => ({ default: m.ApiKeysPage })),
@@ -77,10 +100,15 @@ function App() {
             <Route index element={<Navigate to="/overview" replace />} />
             <Route path="overview" element={<DashboardPage />} />
             <Route path="providers" element={<ProvidersPage />} />
+            <Route path="providers/:providerId" element={<ProviderDetailPage />} />
             <Route path="channels" element={<ChannelsPage />} />
+            <Route path="channels/:channelId" element={<ChannelDetailPage />} />
             <Route path="models" element={<ModelsPage />} />
-            <Route path="model-catalog" element={<ModelCatalogPage />} />
+            <Route path="models/catalog" element={<ModelCatalogPage />} />
+            <Route path="models/:modelId" element={<ModelDetailPage />} />
+            <Route path="model-catalog" element={<ModelCatalogRedirect />} />
             <Route path="routes" element={<RoutesPage />} />
+            <Route path="routes/:routeId" element={<RouteDetailPage />} />
             <Route path="capability-keys" element={<CapabilityKeysPage />} />
             <Route path="capability" element={<CapabilityPage />} />
             <Route path="requests" element={<RequestsPage />} />
@@ -88,11 +116,13 @@ function App() {
             <Route path="ledger" element={<LedgerPage />} />
             <Route path="system" element={<SystemPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="users/:userId" element={<UserDetailPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route
               path="projects/:projectId/api-keys"
               element={<ApiKeysPage />}
             />
+            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

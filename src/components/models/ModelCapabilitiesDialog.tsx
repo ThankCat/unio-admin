@@ -51,15 +51,21 @@ interface RowState {
 export function ModelCapabilitiesDialog({
   model,
   children,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   model: Model;
-  children: ReactNode;
+  children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
       <DialogContent className="sm:max-w-4xl">
         {open && <CapabilityManager model={model} onClose={() => setOpen(false)} />}
       </DialogContent>

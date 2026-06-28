@@ -41,7 +41,7 @@ export function TpsTip({ tps, output }: { tps: number; output: number }) {
   const generationSeconds = tps > 0 ? output / tps : 0;
 
   return (
-    <div className="flex w-64 flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <div className="flex items-end justify-between gap-3">
         <div>
           <div className="text-sm font-semibold leading-tight">平均 TPS</div>

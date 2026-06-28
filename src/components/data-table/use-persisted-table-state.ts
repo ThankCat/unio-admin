@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ColumnOrderState,
   ColumnSizingState,
@@ -10,9 +10,20 @@ export type TableLayoutPrefs = {
   columnOrder: ColumnOrderState;
   columnVisibility: VisibilityState;
   columnSizing: ColumnSizingState;
+  columnSizingSignature?: string;
+};
+
+type StoredTableLayoutPrefs = TableLayoutPrefs & {
+  /** 列结构指纹；与 defaults 不一致时丢弃持久化列宽。 */
+  _layoutKey?: string;
 };
 
 const STORAGE_PREFIX = "unio-admin:table-layout:";
+
+type StoredPrefsState = {
+  layoutKey: string;
+  prefs: TableLayoutPrefs;
+};
 
 function mergeColumnOrder(
   saved: ColumnOrderState | undefined,
@@ -32,17 +43,30 @@ function loadPrefs(
   defaults: TableLayoutPrefs,
   sanitize?: (prefs: TableLayoutPrefs) => TableLayoutPrefs,
 ): TableLayoutPrefs {
+  const currentLayoutKey = layoutKey(key, defaults);
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + key);
     if (!raw) return sanitize ? sanitize(defaults) : defaults;
-    const parsed = JSON.parse(raw) as Partial<TableLayoutPrefs>;
+    const parsed = JSON.parse(raw) as Partial<StoredTableLayoutPrefs>;
+    const structureChanged =
+      parsed._layoutKey == null || parsed._layoutKey !== currentLayoutKey;
+    const columnSizing = structureChanged
+      ? defaults.columnSizing
+      : parsed.columnSizingSignature
+        ? defaults.columnSizing
+        : { ...defaults.columnSizing, ...parsed.columnSizing };
     const merged: TableLayoutPrefs = {
       columnOrder: mergeColumnOrder(parsed.columnOrder, defaults.columnOrder),
       columnVisibility: {
         ...defaults.columnVisibility,
         ...parsed.columnVisibility,
       },
-      columnSizing: { ...defaults.columnSizing, ...parsed.columnSizing },
+      columnSizing,
+      columnSizingSignature: structureChanged
+        ? defaults.columnSizingSignature
+        : parsed.columnSizingSignature != null
+          ? defaults.columnSizingSignature
+          : parsed.columnSizingSignature,
     };
     return sanitize ? sanitize(merged) : merged;
   } catch {
@@ -50,59 +74,102 @@ function loadPrefs(
   }
 }
 
+function layoutKey(storageKey: string, defaults: TableLayoutPrefs): string {
+  return [
+    storageKey,
+    defaults.columnOrder.join(","),
+    defaults.columnSizingSignature ?? "",
+  ].join("|");
+}
+
 export function usePersistedTableState(
   storageKey: string,
   defaults: TableLayoutPrefs,
   sanitize?: (prefs: TableLayoutPrefs) => TableLayoutPrefs,
 ) {
-  const [prefs, setPrefs] = useState<TableLayoutPrefs>(() =>
-    loadPrefs(storageKey, defaults, sanitize),
+  const currentLayoutKey = layoutKey(storageKey, defaults);
+  const [state, setState] = useState<StoredPrefsState>(() => ({
+    layoutKey: currentLayoutKey,
+    prefs: loadPrefs(storageKey, defaults, sanitize),
+  }));
+
+  const loadedPrefs = useMemo(
+    () => loadPrefs(storageKey, defaults, sanitize),
+    [defaults, sanitize, storageKey],
   );
 
-  useEffect(() => {
-    setPrefs(loadPrefs(storageKey, defaults, sanitize));
-  }, [storageKey, defaults, sanitize]);
+  const prefs = state.layoutKey === currentLayoutKey ? state.prefs : loadedPrefs;
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + storageKey, JSON.stringify(prefs));
-  }, [storageKey, prefs]);
+    localStorage.setItem(
+      STORAGE_PREFIX + storageKey,
+      JSON.stringify({ ...prefs, _layoutKey: currentLayoutKey } satisfies StoredTableLayoutPrefs),
+    );
+  }, [currentLayoutKey, storageKey, prefs]);
+
+  const basePrefs = useCallback(
+    (prev: StoredPrefsState) =>
+      prev.layoutKey === currentLayoutKey
+        ? prev.prefs
+        : loadPrefs(storageKey, defaults, sanitize),
+    [currentLayoutKey, defaults, sanitize, storageKey],
+  );
 
   const setColumnOrder: OnChangeFn<ColumnOrderState> = useCallback((updater) => {
-    setPrefs((prev) => ({
-      ...prev,
-      columnOrder:
-        typeof updater === "function" ? updater(prev.columnOrder) : updater,
-    }));
-  }, []);
+    setState((prev) => {
+      const base = basePrefs(prev);
+      return {
+        layoutKey: currentLayoutKey,
+        prefs: {
+          ...base,
+          columnOrder:
+            typeof updater === "function" ? updater(base.columnOrder) : updater,
+        },
+      };
+    });
+  }, [basePrefs, currentLayoutKey]);
 
   const setColumnVisibility: OnChangeFn<VisibilityState> = useCallback(
     (updater) => {
-      setPrefs((prev) => ({
-        ...prev,
-        columnVisibility:
-          typeof updater === "function"
-            ? updater(prev.columnVisibility)
-            : updater,
-      }));
+      setState((prev) => {
+        const base = basePrefs(prev);
+        return {
+          layoutKey: currentLayoutKey,
+          prefs: {
+            ...base,
+            columnVisibility:
+              typeof updater === "function"
+                ? updater(base.columnVisibility)
+                : updater,
+          },
+        };
+      });
     },
-    [],
+    [basePrefs, currentLayoutKey],
   );
 
   const setColumnSizing: OnChangeFn<ColumnSizingState> = useCallback(
     (updater) => {
-      setPrefs((prev) => ({
-        ...prev,
-        columnSizing:
-          typeof updater === "function" ? updater(prev.columnSizing) : updater,
-      }));
+      setState((prev) => {
+        const base = basePrefs(prev);
+        return {
+          layoutKey: currentLayoutKey,
+          prefs: {
+            ...base,
+            columnSizing:
+              typeof updater === "function" ? updater(base.columnSizing) : updater,
+            columnSizingSignature: undefined,
+          },
+        };
+      });
     },
-    [],
+    [basePrefs, currentLayoutKey],
   );
 
   const resetLayout = useCallback(() => {
-    setPrefs(defaults);
+    setState({ layoutKey: currentLayoutKey, prefs: defaults });
     localStorage.removeItem(STORAGE_PREFIX + storageKey);
-  }, [defaults, storageKey]);
+  }, [currentLayoutKey, defaults, storageKey]);
 
   return {
     columnOrder: prefs.columnOrder,

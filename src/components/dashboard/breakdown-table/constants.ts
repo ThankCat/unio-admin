@@ -13,8 +13,7 @@ export type BreakdownColumnId =
   | "margin"
   | "latency"
   | "tps"
-  | "recent_error"
-  | "action";
+  | "recent_error";
 
 export const BREAKDOWN_TABS: { value: BreakdownDimension; label: string }[] = [
   { value: "provider", label: "服务商" },
@@ -30,25 +29,23 @@ export const BREAKDOWN_COLUMNS: Record<
   provider: [
     "name",
     "status",
+    "channels",
     "requests",
     "success_rate",
-    "channels",
-    "tokens",
-    "margin",
     "latency",
     "tps",
-    "action",
+    "tokens",
+    "margin",
   ],
   channel: [
     "name",
     "health",
     "requests",
-    "success_rate",
+    "tokens",
     "margin",
-    "recent_error",
     "latency",
     "tps",
-    "action",
+    "success_rate",
   ],
   model: [
     "name",
@@ -57,7 +54,6 @@ export const BREAKDOWN_COLUMNS: Record<
     "tokens",
     "margin",
     "failed",
-    "action",
   ],
   route: [
     "name",
@@ -67,12 +63,11 @@ export const BREAKDOWN_COLUMNS: Record<
     "success_rate",
     "margin",
     "recent_error",
-    "action",
   ],
 };
 
 export const BREAKDOWN_COLUMN_LABEL: Record<
-  Exclude<BreakdownColumnId, "name" | "action">,
+  Exclude<BreakdownColumnId, "name">,
   string
 > = {
   status: "状态",
@@ -90,52 +85,36 @@ export const BREAKDOWN_COLUMN_LABEL: Record<
 };
 
 export const BREAKDOWN_COLUMN_SIZE: Record<BreakdownColumnId, number> = {
-  name: 180,
-  status: 88,
+  name: 160,
+  status: 72,
   health: 88,
-  requests: 96,
+  requests: 80,
   succeeded: 80,
   failed: 80,
-  success_rate: 168,
-  channels: 96,
-  tokens: 104,
-  margin: 108,
-  latency: 112,
-  tps: 104,
+  success_rate: 92,
+  channels: 84,
+  tokens: 88,
+  margin: 88,
+  latency: 108,
+  tps: 96,
   recent_error: 160,
-  action: 80,
 };
 
 /** 持久化列宽的下限，避免拖拽/旧数据把列压到不可读。 */
 export const BREAKDOWN_COLUMN_MIN_SIZE: Record<BreakdownColumnId, number> = {
   name: 120,
-  status: 72,
+  status: 64,
   health: 72,
-  requests: 72,
+  requests: 64,
   succeeded: 64,
   failed: 64,
-  success_rate: 120,
+  success_rate: 80,
   channels: 72,
-  tokens: 80,
-  margin: 88,
-  latency: 96,
-  tps: 88,
+  tokens: 72,
+  margin: 72,
+  latency: 88,
+  tps: 80,
   recent_error: 120,
-  action: 72,
-};
-
-export const BREAKDOWN_REF_PARAM: Record<BreakdownDimension, string> = {
-  provider: "provider_id",
-  channel: "channel_id",
-  model: "model_id",
-  route: "route_id",
-};
-
-export const BREAKDOWN_LINK: Record<BreakdownDimension, string> = {
-  provider: "/providers",
-  channel: "/channels",
-  model: "/models",
-  route: "/routes",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -172,9 +151,9 @@ export function breakdownColumnLabels(
   dimension: BreakdownDimension,
   nameLabel: string,
 ): Record<string, string> {
-  const labels: Record<string, string> = { name: nameLabel, action: "操作" };
+  const labels: Record<string, string> = { name: nameLabel };
   for (const id of BREAKDOWN_COLUMNS[dimension]) {
-    if (id === "name" || id === "action") continue;
+    if (id === "name") continue;
     labels[id] = BREAKDOWN_COLUMN_LABEL[id];
   }
   return labels;

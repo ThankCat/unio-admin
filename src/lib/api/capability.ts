@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 
 // 与后端能力管理 DTO 对齐（M5）。limits 原样透传 JSON（无则为 null）。
 // 能力 key 是稳定契约（docs/protocol/CAPABILITY_KEYS.md）；support_level：full/limited/unsupported。
@@ -136,12 +137,27 @@ export interface SyncResult {
   fingerprint: string;
 }
 
-export async function listSyncJobs(limit = 20): Promise<SyncJob[]> {
-  const res = await api.get<{ data: SyncJob[] }>(
+export interface SyncJobListParams {
+  page: number;
+  pageSize: number;
+  sort?: string;
+}
+
+export async function listSyncJobs(params: SyncJobListParams): Promise<{
+  items: SyncJob[];
+  total: number;
+}> {
+  const res = await api.get<{ data: SyncJob[]; meta: { page: number; page_size: number; total: number } }>(
     "/admin/v1/capability/sync-jobs",
-    { params: { limit } },
+    {
+      params: buildListQuery({
+        page: params.page,
+        page_size: params.pageSize,
+        sort: params.sort,
+      }),
+    },
   );
-  return res.data.data;
+  return { items: res.data.data, total: res.data.meta.total };
 }
 
 export async function triggerSync(dryRun: boolean): Promise<SyncResult> {

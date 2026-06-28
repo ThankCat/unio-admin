@@ -54,10 +54,10 @@ export function modelOpsColumns(): ColumnDef<ModelOpsRow, unknown>[] {
       size: 96,
       cell: ({ row }) => formatPercent(row.original.success_rate),
     }),
-    resizableColumn<ModelOpsRow>("latency_p95", {
-      header: "P95 延迟",
+    resizableColumn<ModelOpsRow>("latency", {
+      header: "平均延迟",
       size: 112,
-      cell: ({ row }) => formatLatencyMs(row.original.latency_p95),
+      cell: ({ row }) => formatLatencyMs(row.original.latency.avg),
     }),
     resizableColumn<ModelOpsRow>("has_price", {
       header: "价格",

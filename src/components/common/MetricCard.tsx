@@ -2,11 +2,8 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { TipHoverCardContent } from "@/components/dashboard/TipHoverCardContent";
+import { HoverCard, HoverCardTrigger } from "@/components/ui/hover-card";
 
 // §1.5.3 MetricCard：Card + 悬浮详情（HoverCard，可移入 tip）+ Skeleton 组合。运维总览卡片唯一实现。
 export type MetricIntent = "default" | "success" | "warning" | "danger";
@@ -84,9 +81,7 @@ export function MetricCard({
   return (
     <HoverCard openDelay={120} closeDelay={120}>
       <HoverCardTrigger asChild>{card}</HoverCardTrigger>
-      <HoverCardContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-3">
-        {tooltip}
-      </HoverCardContent>
+      <TipHoverCardContent align="start">{tooltip}</TipHoverCardContent>
     </HoverCard>
   );
 }

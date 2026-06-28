@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 
 // 与后端 ledgerEntryDTO 对齐；金额是十进制字符串（不经 float）。
@@ -35,6 +36,7 @@ export interface BillingException {
 export interface LedgerEntryListParams {
   page: number;
   pageSize: number;
+  sort?: string;
   userId?: number;
   entryType?: string;
   currency?: string;
@@ -48,15 +50,16 @@ export async function listLedgerEntries(
   const res = await api.get<{ data: LedgerEntry[]; meta: ListMeta }>(
     "/admin/v1/ledger/entries",
     {
-      params: {
+      params: buildListQuery({
         page: params.page,
         page_size: params.pageSize,
-        user_id: params.userId || undefined,
-        entry_type: params.entryType || undefined,
-        currency: params.currency || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-      },
+        sort: params.sort,
+        user_id: params.userId,
+        entry_type: params.entryType,
+        currency: params.currency,
+        from: params.from,
+        to: params.to,
+      }),
     },
   );
   return { items: res.data.data, total: res.data.meta.total };
@@ -65,8 +68,10 @@ export async function listLedgerEntries(
 export interface BillingExceptionListParams {
   page: number;
   pageSize: number;
+  sort?: string;
   userId?: number;
   eventType?: string;
+  reasonCode?: string;
   from?: string;
   to?: string;
 }
@@ -77,14 +82,16 @@ export async function listBillingExceptions(
   const res = await api.get<{ data: BillingException[]; meta: ListMeta }>(
     "/admin/v1/ledger/billing-exceptions",
     {
-      params: {
+      params: buildListQuery({
         page: params.page,
         page_size: params.pageSize,
-        user_id: params.userId || undefined,
-        event_type: params.eventType || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-      },
+        sort: params.sort,
+        user_id: params.userId,
+        event_type: params.eventType,
+        reason_code: params.reasonCode,
+        from: params.from,
+        to: params.to,
+      }),
     },
   );
   return { items: res.data.data, total: res.data.meta.total };

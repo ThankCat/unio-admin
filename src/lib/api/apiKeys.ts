@@ -12,6 +12,10 @@ export interface ApiKey {
   spend_limit: string | null;
   spent_total: string;
   route_id: number | null;
+  // 令牌级限流（P2-8）：null=继承全局默认，0=不限，>0=具体上限。
+  rpm_limit: number | null;
+  tpm_limit: number | null;
+  rpd_limit: number | null;
   last_used_at: string | null;
   expires_at: string | null;
   disabled_at: string | null;
@@ -25,6 +29,13 @@ export interface CreatedApiKey extends ApiKey {
   plaintext: string;
 }
 
+// 令牌级限流三维（P2-8）：null=继承全局默认，0=不限，>0=具体上限。
+export interface RateLimitsInput {
+  rpm: number | null;
+  tpm: number | null;
+  rpd: number | null;
+}
+
 export interface CreateApiKeyInput {
   projectId: number;
   name: string;
@@ -34,6 +45,8 @@ export interface CreateApiKeyInput {
   spendLimit?: string;
   // 线路绑定（阶段 15）：线路 id，不传/null 表示不绑（回落项目默认/内置经济）。
   routeId?: number | null;
+  // 可选令牌级限流；省略表示三维全继承全局默认。
+  rateLimits?: RateLimitsInput;
 }
 
 export async function createApiKey(
@@ -46,6 +59,7 @@ export async function createApiKey(
       expires_at: input.expiresAt || undefined,
       spend_limit: input.spendLimit ?? undefined,
       route_id: input.routeId ?? undefined,
+      rate_limits: input.rateLimits ?? undefined,
     },
   );
   return res.data.data;
@@ -58,6 +72,8 @@ export interface UpdateApiKeyInput {
   disabled?: boolean;
   spendLimit?: string;
   routeId?: number | null;
+  // 令牌级限流；省略表示不变，传对象即原子替换三维。
+  rateLimits?: RateLimitsInput;
 }
 
 export async function updateApiKey(input: UpdateApiKeyInput): Promise<ApiKey> {
@@ -65,6 +81,7 @@ export async function updateApiKey(input: UpdateApiKeyInput): Promise<ApiKey> {
   if (input.disabled !== undefined) body.disabled = input.disabled;
   if (input.spendLimit !== undefined) body.spend_limit = input.spendLimit;
   if (input.routeId !== undefined) body.route_id = input.routeId;
+  if (input.rateLimits !== undefined) body.rate_limits = input.rateLimits;
   const res = await api.patch<{ data: ApiKey }>(
     `/admin/v1/api-keys/${input.id}`,
     body,

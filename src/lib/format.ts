@@ -60,6 +60,12 @@ export function formatLatencyMs(ms: number | null | undefined): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+// 性能趋势等场景：统一以秒展示（入参 ms）。
+export function formatLatencySec(ms: number | null | undefined, digits = 2): string {
+  if (ms == null || Number.isNaN(ms)) return DASH;
+  return `${(ms / 1000).toFixed(digits)}s`;
+}
+
 // 输出 token 速率。
 export function formatTPS(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return DASH;

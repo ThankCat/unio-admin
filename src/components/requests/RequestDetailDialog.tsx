@@ -6,6 +6,7 @@ import {
   type RequestDetail,
 } from "@/lib/api/requests";
 import type { BillingException, LedgerEntry } from "@/lib/api/ledger";
+import { billingExceptionEventLabel } from "@/components/ops-tables/ledger-columns";
 import { formatDateTime, trimDecimal } from "@/lib/format";
 import {
   Dialog,
@@ -270,7 +271,9 @@ function BillingExceptionBlock({
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
       <Row label="类型">
-        <Badge variant="destructive">{exception.event_type}</Badge>
+        <Badge variant={exception.event_type === "risk_exposure" ? "outline" : "destructive"}>
+          {billingExceptionEventLabel(exception.event_type)}
+        </Badge>
       </Row>
       <Row label="平台承担">
         {trimDecimal(exception.platform_amount)} {exception.currency}

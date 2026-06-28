@@ -94,7 +94,7 @@ export function CacheHitTip({ cache }: { cache: CacheStats }) {
   const missPct = input > 0 ? cache.uncached_tokens / input : 0;
 
   return (
-    <div className="w-80 space-y-3">
+    <div className="w-full space-y-3">
       {/* 顶栏 + 命中率 */}
       <div className="flex items-end justify-between gap-3">
         <div>

@@ -96,6 +96,10 @@ function isItemActive(
   return defaultActive(item.to, loc.pathname);
 }
 
+function isEntityDetailPath(pathname: string): boolean {
+  return /\/(providers|channels|models|routes|users|projects)\/\d+/.test(pathname);
+}
+
 export function AppLayout() {
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -108,6 +112,7 @@ export function AppLayout() {
   }
 
   const current = NAV_ITEMS.find((item) => defaultActive(item.to, loc.pathname));
+  const headerTitle = isEntityDetailPath(loc.pathname) ? null : (current?.title ?? "Unio 控制台");
 
   return (
     <SidebarProvider>
@@ -168,9 +173,9 @@ export function AppLayout() {
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          <h1 className="font-heading text-sm font-medium">
-            {current?.title ?? "Unio 控制台"}
-          </h1>
+          {headerTitle ? (
+            <h1 className="font-heading text-sm font-medium">{headerTitle}</h1>
+          ) : null}
           <div className="ml-auto">
             <ModeToggle />
           </div>

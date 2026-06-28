@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { SupportLevelBadge } from "@/components/capability/shared";
 import { CapabilityDictionaryTab } from "@/components/capability/CapabilityDictionaryTab";
+import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { formatLimits } from "@/lib/capability/limits";
 
 type CapabilityPageTab = "dictionary" | "adapter";
@@ -38,7 +39,7 @@ export function CapabilityPage() {
   const tabParam = searchParams.get("tab");
 
   if (tabParam === "sync") {
-    return <Navigate to="/models?tab=catalog" replace />;
+    return <Navigate to="/models/catalog" replace />;
   }
 
   const pageTab: CapabilityPageTab =
@@ -87,6 +88,7 @@ export function CapabilityPage() {
 
 function AdapterTab() {
   const [modelId, setModelId] = useState<string>("");
+  const [pendingProfileKey, setPendingProfileKey] = useState<string | null>(null);
 
   const profilesQuery = useQuery({
     queryKey: ["adapter-profiles"],
@@ -101,13 +103,16 @@ function AdapterTab() {
   const mutation = useMutation({
     mutationFn: (profileKey: string) =>
       materializeAdapterSeed(Number(modelId), profileKey),
-    onSuccess: (res) =>
-      toast.success(`已物化 ${res.materialized} 条能力到模型 #${res.model_id}`),
+    onSuccess: (res) => {
+      toast.success(`已物化 ${res.materialized} 条能力到模型 #${res.model_id}`);
+      setPendingProfileKey(null);
+    },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
   const models: Model[] = modelsQuery.data ?? [];
   const canMaterialize = modelId !== "" && !mutation.isPending;
+  const selectedModel = models.find((m) => String(m.id) === modelId);
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,7 +170,7 @@ function AdapterTab() {
                 <Button
                   size="sm"
                   disabled={!canMaterialize}
-                  onClick={() => mutation.mutate(profile.key)}
+                  onClick={() => setPendingProfileKey(profile.key)}
                 >
                   {mutation.isPending && <Spinner data-icon="inline-start" />}
                   物化到所选模型
@@ -191,6 +196,25 @@ function AdapterTab() {
           ))}
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={pendingProfileKey != null}
+        onOpenChange={(o) => {
+          if (!o && !mutation.isPending) setPendingProfileKey(null);
+        }}
+        title="物化能力声明"
+        description={
+          pendingProfileKey && selectedModel
+            ? `确认将 adapter 画像「${pendingProfileKey}」物化到「${selectedModel.display_name}」？将覆盖目标模型中同 key 的既有能力声明。`
+            : undefined
+        }
+        confirmLabel="确认物化"
+        destructive
+        pending={mutation.isPending}
+        onConfirm={() => {
+          if (pendingProfileKey) mutation.mutate(pendingProfileKey);
+        }}
+      />
     </div>
   );
 }

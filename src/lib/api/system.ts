@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
 
 // 与后端 M8 system handler DTO 对齐。
@@ -59,6 +60,7 @@ export interface RecoveryJobDetail extends RecoveryJobSummary {
 export interface RecoveryJobListParams {
   page: number;
   pageSize: number;
+  sort?: string;
   status?: string;
   userId?: number;
   from?: string;
@@ -71,14 +73,15 @@ export async function listRecoveryJobs(
   const res = await api.get<{ data: RecoveryJobSummary[]; meta: ListMeta }>(
     "/admin/v1/system/settlement-recovery-jobs",
     {
-      params: {
+      params: buildListQuery({
         page: params.page,
         page_size: params.pageSize,
-        status: params.status || undefined,
-        user_id: params.userId || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-      },
+        sort: params.sort,
+        status: params.status,
+        user_id: params.userId,
+        from: params.from,
+        to: params.to,
+      }),
     },
   );
   return { items: res.data.data, total: res.data.meta.total };
@@ -125,5 +128,28 @@ export async function listChannelHealth(params?: {
     "/admin/v1/system/channel-health",
     { params: { from: params?.from || undefined, to: params?.to || undefined } },
   );
+  return res.data.data;
+}
+
+// 网关配置只读面板：进程级 env 生效阈值（脱敏，绝不含凭据/密钥/连接串）。
+// 与后端 systemConfigDTO 对齐：分组 + 每项 {label, value, env}。
+export interface SystemConfigEntry {
+  label: string;
+  value: string;
+  env: string;
+}
+
+export interface SystemConfigGroup {
+  title: string;
+  entries: SystemConfigEntry[];
+}
+
+export interface SystemConfig {
+  note: string;
+  groups: SystemConfigGroup[];
+}
+
+export async function getSystemConfig(): Promise<SystemConfig> {
+  const res = await api.get<{ data: SystemConfig }>("/admin/v1/system/config");
   return res.data.data;
 }

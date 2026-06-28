@@ -21,11 +21,17 @@ import {
 export function DeleteModelDialog({
   model,
   children,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   model: Model;
-  children: ReactNode;
+  children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -48,7 +54,7 @@ export function DeleteModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>删除模型</DialogTitle>
