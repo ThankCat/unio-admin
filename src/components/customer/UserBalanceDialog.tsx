@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/users";
 import { apiErrorMessage } from "@/lib/api/client";
 import { trimDecimal } from "@/lib/format";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -27,7 +28,6 @@ import {
   Field,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 import {
   Select,
@@ -168,7 +168,9 @@ export function UserBalanceDialog({
           <FieldGroup>
             <div className="grid grid-cols-2 gap-4">
               <Field>
-                <FieldLabel htmlFor="direction">方向</FieldLabel>
+                <HintLabel htmlFor="direction" hint="调额方向：充值=加款，扣款=减款（均写入账本流水）。">
+                  方向
+                </HintLabel>
                 <Select
                   value={direction}
                   onValueChange={(v) => setDirection(v as AdjustDirection)}
@@ -184,7 +186,9 @@ export function UserBalanceDialog({
               </Field>
 
               <Field data-invalid={!!errors.currency}>
-                <FieldLabel htmlFor="currency">币种</FieldLabel>
+                <HintLabel htmlFor="currency" hint="调额的币种（如 USD），按币种分别记账。">
+                  币种
+                </HintLabel>
                 <Input
                   id="currency"
                   value={currency}
@@ -197,7 +201,9 @@ export function UserBalanceDialog({
             </div>
 
             <Field data-invalid={!!errors.amount}>
-              <FieldLabel htmlFor="amount">金额</FieldLabel>
+              <HintLabel htmlFor="amount" hint="本次调额金额，需大于 0。">
+                金额
+              </HintLabel>
               <Input
                 id="amount"
                 value={amount}
@@ -211,7 +217,9 @@ export function UserBalanceDialog({
             </Field>
 
             <Field data-invalid={!!errors.reason}>
-              <FieldLabel htmlFor="reason">原因</FieldLabel>
+              <HintLabel htmlFor="reason" hint="调额原因，写入账本流水留痕（必填）。">
+                原因
+              </HintLabel>
               <Input
                 id="reason"
                 value={reason}

@@ -17,6 +17,7 @@ import { listAllModels } from "@/lib/api/models";
 import { type Channel } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -29,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -178,7 +179,9 @@ function AddBindingForm({
   return (
     <div className="bg-muted/40 flex flex-wrap items-end gap-3 rounded-md border p-3">
       <Field className="min-w-44 flex-1">
-        <FieldLabel htmlFor="bind_model">模型</FieldLabel>
+        <HintLabel htmlFor="bind_model" hint="选择要为该渠道挂载的模型；已绑定的模型不再列出。">
+          模型
+        </HintLabel>
         <Select value={modelId} onValueChange={handleModelChange}>
           <SelectTrigger id="bind_model" className="w-full">
             <SelectValue
@@ -202,7 +205,9 @@ function AddBindingForm({
       </Field>
 
       <Field className="min-w-44 flex-1">
-        <FieldLabel htmlFor="bind_upstream">上游模型名</FieldLabel>
+        <HintLabel htmlFor="bind_upstream" hint="转发到上游时使用的模型名（上游侧的真实模型名）。">
+          上游模型名
+        </HintLabel>
         <Input
           id="bind_upstream"
           value={upstream}

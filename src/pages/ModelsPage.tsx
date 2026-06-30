@@ -31,7 +31,7 @@ export function ModelsPage() {
   }, [qParam, setSearchParams]);
 
   const table = useOpsServerTable({
-    queryKey: "models-ops",
+    queryKey: "models",
     fetch: getModelsOpsTable,
     defaultSort: { id: "success_rate", desc: false },
   });

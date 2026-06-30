@@ -1,5 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontalIcon } from "lucide-react";
+import { toast } from "sonner";
 import type { ApiKeyOpsRow } from "@/lib/api/customerOps";
 import type { ApiKey } from "@/lib/api/apiKeys";
 import { resizableColumn } from "@/components/data-table";
@@ -12,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ApiKeyRouteDialog } from "@/components/customer/ApiKeyRouteDialog";
 import { ApiKeySpendLimitDialog } from "@/components/customer/ApiKeySpendLimitDialog";
 
 // budgetUsagePercent 计算费用上限使用率（向下取整百分比）；未设上限返回 null（不展示比例）。
@@ -26,16 +28,30 @@ function budgetUsagePercent(
   return Math.floor((spent / limit) * 100);
 }
 
+// copyPlaintextKey 复制完整明文 key（产品决策：明文留存，可多次复制）。
+async function copyPlaintextKey(row: ApiKeyOpsRow) {
+  if (!row.key_plaintext) {
+    toast.error("该 Key 无可复制明文（历史 Key）");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(row.key_plaintext);
+    toast.success("已复制完整 Key 到剪贴板");
+  } catch {
+    toast.error("复制失败，请手动选择复制");
+  }
+}
+
 function toApiKey(row: ApiKeyOpsRow): ApiKey {
   return {
     id: row.id,
-    project_id: row.project_id,
+    user_id: row.user_id,
     name: row.name,
     key_prefix: row.key_prefix,
     status: row.status,
     spend_limit: row.spend_limit,
     spent_total: row.spent_total,
-    route_id: null,
+    route_id: row.route_id,
     rpm_limit: null,
     tpm_limit: null,
     rpd_limit: null,
@@ -80,7 +96,7 @@ export function apiKeyOpsColumns(handlers: {
       header: "线路",
       size: 160,
       cell: ({ row }) => (
-        <span className="text-xs">{row.original.route_name || "项目默认 → 内置经济"}</span>
+        <span className="text-xs">{row.original.route_name}</span>
       ),
     }),
     resizableColumn<ApiKeyOpsRow>("spend_limit", {
@@ -147,9 +163,15 @@ export function apiKeyOpsColumns(handlers: {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => copyPlaintextKey(row.original)}>
+                复制完整 Key
+              </DropdownMenuItem>
               <ApiKeySpendLimitDialog apiKey={toApiKey(row.original)}>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>调整限额</DropdownMenuItem>
               </ApiKeySpendLimitDialog>
+              <ApiKeyRouteDialog apiKey={toApiKey(row.original)}>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>换绑线路</DropdownMenuItem>
+              </ApiKeyRouteDialog>
               {row.original.status !== "revoked" ? (
                 <DropdownMenuItem onSelect={() => handlers.onToggle(row.original)}>
                   {row.original.status === "disabled" ? "启用" : "停用"}

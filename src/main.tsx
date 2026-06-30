@@ -10,7 +10,16 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
 import { Toaster } from "@/components/ui/sonner.tsx";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 切到其他浏览器标签页再回来时不自动重取：窗口重新聚焦触发的后台 refetch 会重渲染列表，
+      // 把正在打开的弹窗/下拉/输入挤掉（也造成无谓抖动与丢失滚动位置）。
+      // 数据新鲜度改由「写操作后 invalidateQueries」+ 手动刷新保证，不依赖窗口聚焦。
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

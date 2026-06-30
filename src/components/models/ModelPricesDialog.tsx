@@ -7,13 +7,12 @@ import {
 import { toast } from "sonner";
 import { ArrowLeftIcon, CheckIcon, PlusIcon } from "lucide-react";
 import {
-  createChannelPrice,
-  listChannelPrices,
-  updateChannelPrice,
-  type ChannelPrice,
-} from "@/lib/api/channelPrices";
-import { listChannelModels } from "@/lib/api/channelModels";
-import { type Channel } from "@/lib/api/channels";
+  createModelPrice,
+  listModelPrices,
+  updateModelPrice,
+  type ModelPrice,
+} from "@/lib/api/modelPrices";
+import { type Model } from "@/lib/api/models";
 import { apiErrorMessage } from "@/lib/api/client";
 import {
   formatDateTime,
@@ -51,8 +50,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MONEY_PATTERN = /^\d+(\.\d+)?$/;
 
-// 成本分项：六个分项，前两个（未缓存输入/输出）成本必填（DEC-026：渠道只录成本）。
-const COST_FIELDS = [
+// 基准售价分项：六个分项，前两个（未缓存输入/输出）必填。
+const PRICE_FIELDS = [
   { key: "uncached_input", label: "未缓存输入", required: true },
   { key: "output", label: "输出", required: true },
   { key: "cache_read_input", label: "缓存读取输入", required: false },
@@ -61,39 +60,34 @@ const COST_FIELDS = [
   { key: "cache_write_1h_input", label: "1 小时缓存写入", required: false },
 ] as const;
 
-type CostFieldKey = (typeof COST_FIELDS)[number]["key"];
+type PriceFieldKey = (typeof PRICE_FIELDS)[number]["key"];
 
-export function ChannelPricesDialog({
+export function ModelPricesDialog({
   open,
   onOpenChange,
-  channel,
+  model,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  channel: Channel;
+  model: Model;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
-        {open && <ChannelPriceManager channel={channel} />}
+        {open && <ModelPriceManager model={model} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ChannelPriceManager({ channel }: { channel: Channel }) {
+function ModelPriceManager({ model }: { model: Model }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"list" | "create">("list");
-  const pricesKey = ["channel-prices", channel.id];
+  const pricesKey = ["model-prices", model.id];
 
   const pricesQuery = useQuery({
     queryKey: pricesKey,
-    queryFn: () => listChannelPrices(channel.id),
-  });
-
-  const bindingsQuery = useQuery({
-    queryKey: ["channel-models", channel.id],
-    queryFn: () => listChannelModels(channel.id),
+    queryFn: () => listModelPrices(model.id),
   });
 
   const invalidate = () =>
@@ -105,16 +99,13 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>新建渠道-模型成本价</DialogTitle>
+          <DialogTitle>新建模型基准售价</DialogTitle>
           <DialogDescription>
-            为「{channel.name}」的某个已绑定模型配置上游成本价（按每百万 token 计）。
-            客户售价 = 模型基准价 × 线路倍率（与渠道解耦），此处只录成本。
+            为「{model.display_name}」配置基准售价（按每百万 token 计）。客户最终售价 = 基准价 × 线路倍率。
           </DialogDescription>
         </DialogHeader>
-        <ChannelPriceForm
-          channelId={channel.id}
-          bindings={bindingsQuery.data ?? []}
-          bindingsLoading={bindingsQuery.isPending}
+        <ModelPriceForm
+          modelId={model.id}
           onCancel={() => setMode("list")}
           onCreated={() => {
             invalidate();
@@ -128,9 +119,9 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>渠道-模型成本价</DialogTitle>
+        <DialogTitle>模型基准售价</DialogTitle>
         <DialogDescription>
-          「{channel.name}」各模型的上游成本价（含历史与停用）。价格不可删，改价请新建一条并关闭旧窗口。
+          「{model.display_name}」的基准售价（含历史与停用）。价格不可删，改价请新建一条并关闭旧窗口。
         </DialogDescription>
       </DialogHeader>
 
@@ -138,7 +129,7 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
         <div>
           <Button size="sm" onClick={() => setMode("create")}>
             <PlusIcon data-icon="inline-start" />
-            新建渠道-模型成本价
+            新建基准售价
           </Button>
         </div>
 
@@ -155,12 +146,12 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
           </div>
         ) : prices.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            还没有配置渠道-模型成本价
+            还没有配置基准售价
           </p>
         ) : (
           <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto rounded-md border">
             {prices.map((p) => (
-              <ChannelPriceRow key={p.id} price={p} onChanged={invalidate} />
+              <ModelPriceRow key={p.id} price={p} onChanged={invalidate} />
             ))}
           </ul>
         )}
@@ -169,22 +160,17 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
   );
 }
 
-function ChannelPriceForm({
-  channelId,
-  bindings,
-  bindingsLoading,
+function ModelPriceForm({
+  modelId,
   onCancel,
   onCreated,
 }: {
-  channelId: number;
-  bindings: { model_id: number; model_external_id: string }[];
-  bindingsLoading: boolean;
+  modelId: number;
   onCancel: () => void;
   onCreated: () => void;
 }) {
-  const [modelId, setModelId] = useState("");
   const [currency, setCurrency] = useState("USD");
-  const [cost, setCost] = useState<Record<CostFieldKey, string>>(emptyAmounts);
+  const [price, setPrice] = useState<Record<PriceFieldKey, string>>(emptyAmounts);
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
   const [status, setStatus] = useState("enabled");
@@ -192,23 +178,22 @@ function ChannelPriceForm({
 
   const mutation = useMutation({
     mutationFn: () =>
-      createChannelPrice({
-        channelId,
-        modelId: Number(modelId),
+      createModelPrice({
+        modelId,
         currency: currency.trim(),
         pricing_unit: "per_1m_tokens",
-        uncached_input_cost: cost.uncached_input.trim(),
-        output_cost: cost.output.trim(),
-        cache_read_input_cost: optionalMoney(cost.cache_read_input),
-        reasoning_output_cost: optionalMoney(cost.reasoning_output),
-        cache_write_5m_input_cost: optionalMoney(cost.cache_write_5m_input),
-        cache_write_1h_input_cost: optionalMoney(cost.cache_write_1h_input),
+        uncached_input_price: price.uncached_input.trim(),
+        output_price: price.output.trim(),
+        cache_read_input_price: optionalMoney(price.cache_read_input),
+        reasoning_output_price: optionalMoney(price.reasoning_output),
+        cache_write_5m_input_price: optionalMoney(price.cache_write_5m_input),
+        cache_write_1h_input_price: optionalMoney(price.cache_write_1h_input),
         status,
         effective_from: localToRFC3339(effectiveFrom),
         effective_to: effectiveTo.trim() ? localToRFC3339(effectiveTo) : null,
       }),
-    onSuccess: (created) => {
-      toast.success(`已为「${created.model_external_id}」新增渠道-模型成本价`);
+    onSuccess: () => {
+      toast.success("已新增模型基准售价");
       onCreated();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -216,15 +201,14 @@ function ChannelPriceForm({
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (!(Number(modelId) > 0)) next.model_id = "请选择模型";
     if (currency.trim() === "") next.currency = "币种不能为空";
 
-    for (const f of COST_FIELDS) {
-      const costVal = cost[f.key].trim();
-      if (f.required && costVal === "") {
-        next[`cost_${f.key}`] = "成本必填";
-      } else if (costVal !== "" && !MONEY_PATTERN.test(costVal)) {
-        next[`cost_${f.key}`] = "需为非负小数";
+    for (const f of PRICE_FIELDS) {
+      const val = price[f.key].trim();
+      if (f.required && val === "") {
+        next[`price_${f.key}`] = "基准价必填";
+      } else if (val !== "" && !MONEY_PATTERN.test(val)) {
+        next[`price_${f.key}`] = "需为非负小数";
       }
     }
 
@@ -248,78 +232,46 @@ function ChannelPriceForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <Field data-invalid={!!errors.model_id}>
-          <HintLabel htmlFor="cp_model" hint="为该渠道下哪个已绑定模型录入成本价；需先绑定模型。">
-            模型
-          </HintLabel>
-          <Select value={modelId} onValueChange={setModelId}>
-            <SelectTrigger
-              id="cp_model"
-              className="w-full"
-              aria-invalid={!!errors.model_id}
-            >
-              <SelectValue
-                placeholder={
-                  bindingsLoading
-                    ? "加载中…"
-                    : bindings.length === 0
-                      ? "请先绑定模型"
-                      : "选择模型"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {bindings.map((b) => (
-                <SelectItem key={b.model_id} value={String(b.model_id)}>
-                  {b.model_external_id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError>{errors.model_id}</FieldError>
-        </Field>
+      <Field data-invalid={!!errors.currency}>
+        <HintLabel htmlFor="mp_currency" hint="基准价计价币种（如 USD）；计价单位为每百万 token。">
+          币种
+        </HintLabel>
+        <Input
+          id="mp_currency"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          placeholder="USD"
+          aria-invalid={!!errors.currency}
+          className="max-w-40"
+        />
+        <FieldError>{errors.currency}</FieldError>
+      </Field>
 
-        <Field data-invalid={!!errors.currency}>
-          <HintLabel htmlFor="cp_currency" hint="成本计价币种（如 USD）；计价单位为每百万 token。">
-            币种
-          </HintLabel>
-          <Input
-            id="cp_currency"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            placeholder="USD"
-            aria-invalid={!!errors.currency}
-          />
-          <FieldError>{errors.currency}</FieldError>
-        </Field>
-      </div>
-
-      {/* 只录成本：每个分项一栏成本（前两项必填）。 */}
+      {/* 基准售价：每个分项一栏（前两项必填）。 */}
       <div className="overflow-hidden rounded-md border">
         <div className="bg-muted/40 text-muted-foreground grid grid-cols-[1.4fr_1fr] gap-2 px-3 py-2 text-xs font-medium">
           <div>分项</div>
-          <div>成本</div>
+          <div>基准价</div>
         </div>
-        {COST_FIELDS.map((f) => (
-          <CostRow
+        {PRICE_FIELDS.map((f) => (
+          <PriceRow
             key={f.key}
             label={f.label}
             required={f.required}
-            cost={cost[f.key]}
-            costError={errors[`cost_${f.key}`]}
-            onCost={(v) => setCost((s) => ({ ...s, [f.key]: v }))}
+            price={price[f.key]}
+            priceError={errors[`price_${f.key}`]}
+            onPrice={(v) => setPrice((s) => ({ ...s, [f.key]: v }))}
           />
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Field data-invalid={!!errors.effective_from}>
-          <HintLabel htmlFor="cp_from" hint="该成本价开始生效的时间点。">
+          <HintLabel htmlFor="mp_from" hint="该基准价开始生效的时间点。">
             生效开始
           </HintLabel>
           <Input
-            id="cp_from"
+            id="mp_from"
             type="datetime-local"
             value={effectiveFrom}
             onChange={(e) => setEffectiveFrom(e.target.value)}
@@ -329,11 +281,11 @@ function ChannelPriceForm({
         </Field>
 
         <Field data-invalid={!!errors.effective_to}>
-          <HintLabel htmlFor="cp_to" hint="该成本价的失效时间；留空表示长期有效。">
+          <HintLabel htmlFor="mp_to" hint="该基准价的失效时间；留空表示长期有效。">
             生效结束（可选）
           </HintLabel>
           <Input
-            id="cp_to"
+            id="mp_to"
             type="datetime-local"
             value={effectiveTo}
             onChange={(e) => setEffectiveTo(e.target.value)}
@@ -344,11 +296,11 @@ function ChannelPriceForm({
       </div>
 
       <Field>
-        <HintLabel htmlFor="cp_status" hint="启用后在其生效区间内参与计费；停用则不参与。渠道只录成本，不含售价。">
+        <HintLabel htmlFor="mp_status" hint="启用后在其生效区间内参与计费；停用则不参与。">
           状态
         </HintLabel>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="cp_status" className="w-full">
+          <SelectTrigger id="mp_status" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -372,18 +324,18 @@ function ChannelPriceForm({
   );
 }
 
-function CostRow({
+function PriceRow({
   label,
   required,
-  cost,
-  costError,
-  onCost,
+  price,
+  priceError,
+  onPrice,
 }: {
   label: string;
   required: boolean;
-  cost: string;
-  costError?: string;
-  onCost: (v: string) => void;
+  price: string;
+  priceError?: string;
+  onPrice: (v: string) => void;
 }) {
   return (
     <div className="grid grid-cols-[1.4fr_1fr] items-start gap-2 border-t px-3 py-2">
@@ -393,26 +345,26 @@ function CostRow({
       </div>
       <div>
         <Input
-          value={cost}
-          onChange={(e) => onCost(e.target.value)}
+          value={price}
+          onChange={(e) => onPrice(e.target.value)}
           placeholder={required ? "0.00" : "—"}
           inputMode="decimal"
-          aria-invalid={!!costError}
+          aria-invalid={!!priceError}
           className="h-8"
         />
-        {costError && (
-          <p className="text-destructive mt-1 text-xs">{costError}</p>
+        {priceError && (
+          <p className="text-destructive mt-1 text-xs">{priceError}</p>
         )}
       </div>
     </div>
   );
 }
 
-function ChannelPriceRow({
+function ModelPriceRow({
   price,
   onChanged,
 }: {
-  price: ChannelPrice;
+  price: ModelPrice;
   onChanged: () => void;
 }) {
   const [draftTo, setDraftTo] = useState(rfc3339ToLocal(price.effective_to));
@@ -422,7 +374,7 @@ function ChannelPriceRow({
 
   const mutation = useMutation({
     mutationFn: (vars: { status: string; effective_to: string | null }) =>
-      updateChannelPrice({
+      updateModelPrice({
         id: price.id,
         status: vars.status,
         effective_to: vars.effective_to,
@@ -443,10 +395,9 @@ function ChannelPriceRow({
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
       <div className="min-w-48 flex-1">
-        <div className="font-medium">{price.model_external_id}</div>
         <div className="text-muted-foreground text-xs">
-          {price.currency} · 成本 输入 {trimDecimal(price.uncached_input_cost)} /
-          输出 {trimDecimal(price.output_cost)}
+          {price.currency} · 基准价 输入 {trimDecimal(price.uncached_input_price)} /
+          输出 {trimDecimal(price.output_price)}
         </div>
         <div className="text-muted-foreground text-xs">
           {formatDateTime(price.effective_from)} ~{" "}
@@ -488,7 +439,7 @@ function ChannelPriceRow({
           onCheckedChange={(next) =>
             setPendingStatus(next ? "enabled" : "disabled")
           }
-          aria-label={`切换价格 ${price.id} 状态`}
+          aria-label={`切换基准价 ${price.id} 状态`}
         />
         <Badge variant={enabled ? "default" : "secondary"}>
           {enabled ? "启用" : "停用"}
@@ -500,11 +451,11 @@ function ChannelPriceRow({
         onOpenChange={(o) => {
           if (!o && !busy) setPendingStatus(null);
         }}
-        title={disabling ? "停用渠道-模型成本价" : "启用渠道-模型成本价"}
+        title={disabling ? "停用基准售价" : "启用基准售价"}
         description={
           disabling
-            ? `确认停用「${price.model_external_id}」的这条成本价？停用后不再参与计费，可随时重新启用。`
-            : `确认启用「${price.model_external_id}」的这条成本价？启用后将在其生效区间内参与计费。`
+            ? "确认停用这条基准售价？停用后不再参与计费，可随时重新启用。"
+            : "确认启用这条基准售价？启用后将在其生效区间内参与计费。"
         }
         confirmLabel={disabling ? "确认停用" : "确认启用"}
         destructive={disabling}
@@ -521,7 +472,7 @@ function ChannelPriceRow({
   );
 }
 
-function emptyAmounts(): Record<CostFieldKey, string> {
+function emptyAmounts(): Record<PriceFieldKey, string> {
   return {
     uncached_input: "",
     output: "",

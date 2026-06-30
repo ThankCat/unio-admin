@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, Navigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeftIcon, PlusIcon } from "lucide-react";
@@ -8,6 +8,7 @@ import {
   getApiKeysOpsTable,
   type ApiKeyOpsRow,
 } from "@/lib/api/customerOps";
+import { getUser } from "@/lib/api/users";
 import { revokeApiKey, updateApiKey } from "@/lib/api/apiKeys";
 import { apiErrorMessage } from "@/lib/api/client";
 import { useRangeQuery } from "@/hooks/useRangeQuery";
@@ -20,30 +21,40 @@ import { CreateApiKeyDialog } from "@/components/customer/CreateApiKeyDialog";
 import { formatInt } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type PendingKeyAction =
   | { type: "toggle"; key: ApiKeyOpsRow }
   | { type: "revoke"; key: ApiKeyOpsRow };
 
 export function ApiKeysPage() {
-  const { projectId: projectIdParam } = useParams();
-  const projectId = Number(projectIdParam);
+  const { userId: userIdParam } = useParams();
+  const userId = Number(userIdParam);
   const { value, setRange, params, refresh, refreshedAt } = useRangeQuery("24h");
   const queryClient = useQueryClient();
   const rangeQuery = { ...params, range: value.preset };
 
+  if (!Number.isFinite(userId) || userId <= 0) {
+    return <Navigate to="/users" replace />;
+  }
+
+  const user = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => getUser(userId),
+  });
+
   const summary = useQuery({
-    queryKey: ["api-keys", projectId, "ops-summary"],
-    queryFn: () => getApiKeysOpsSummary(projectId),
+    queryKey: ["api-keys", userId, "ops-summary"],
+    queryFn: () => getApiKeysOpsSummary(userId),
     refetchInterval: 60_000,
   });
   const table = useQuery({
-    queryKey: ["api-keys", projectId, "ops-table", rangeQuery],
-    queryFn: () => getApiKeysOpsTable(projectId, rangeQuery),
+    queryKey: ["api-keys", userId, "ops-table", rangeQuery],
+    queryFn: () => getApiKeysOpsTable(userId, rangeQuery),
     placeholderData: keepPreviousData,
   });
 
-  const refetch = () => queryClient.invalidateQueries({ queryKey: ["api-keys", projectId] });
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ["api-keys", userId] });
 
   const [pendingAction, setPendingAction] = useState<PendingKeyAction | null>(null);
 
@@ -83,14 +94,20 @@ export function ApiKeysPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Button asChild variant="ghost" size="sm" className="mb-1 -ml-2">
-            <Link to="/projects"><ChevronLeftIcon data-icon="inline-start" />返回项目</Link>
+            <Link to={`/users/${userId}`}><ChevronLeftIcon data-icon="inline-start" />返回用户</Link>
           </Button>
           <h2 className="font-heading text-lg font-semibold tracking-tight">API Key</h2>
-          <p className="text-muted-foreground text-sm">真实调用入口：线路、限额与用量</p>
+          {user.isPending ? (
+            <Skeleton className="mt-1 h-4 w-48" />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              {user.data?.email ?? "—"} · 真实调用入口：线路、限额与用量
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <RangeFilter value={value} onChange={setRange} refreshedAt={refreshedAt} onRefresh={refresh} />
-          <CreateApiKeyDialog projectId={projectId}>
+          <CreateApiKeyDialog userId={userId}>
             <Button size="sm"><PlusIcon data-icon="inline-start" />新建 Key</Button>
           </CreateApiKeyDialog>
         </div>
@@ -109,7 +126,7 @@ export function ApiKeysPage() {
         </Alert>
       ) : (
         <ConfigurableDataTable
-          storageKey={`api-keys:${projectId}:ops-table`}
+          storageKey={`api-keys:${userId}:ops-table`}
           data={table.data ?? []}
           columns={columns}
           loading={table.isPending}

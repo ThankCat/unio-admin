@@ -9,6 +9,14 @@ import {
 import { listRoutes } from "@/lib/api/routes";
 import { apiErrorMessage } from "@/lib/api/client";
 import { localToRFC3339 } from "@/lib/format";
+import { HintLabel } from "@/components/common/field-hint";
+import {
+  RateLimitInput,
+  composeRateLimit,
+  rateLimitWithUnitError,
+  EMPTY_RATE_LIMIT,
+  type RateLimitFieldValue,
+} from "@/components/common/rate-limit-input";
 import {
   Select,
   SelectContent,
@@ -32,7 +40,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -43,6 +50,7 @@ const MONEY_PATTERN = /^\d+(\.\d+)?$/;
 interface FieldErrors {
   name?: string;
   spendLimit?: string;
+  routeId?: string;
   rpm?: string;
   tpm?: string;
   rpd?: string;
@@ -66,10 +74,10 @@ function rateLimitError(raw: string): string | undefined {
 
 // 创建 API Key 弹窗：成功后切到「明文展示」态，明文只展示这一次。
 export function CreateApiKeyDialog({
-  projectId,
+  userId,
   children,
 }: {
-  projectId: number;
+  userId: number;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -78,8 +86,13 @@ export function CreateApiKeyDialog({
   const [spendLimit, setSpendLimit] = useState("");
   const [routeId, setRouteId] = useState("");
   const [rpmLimit, setRpmLimit] = useState("");
-  const [tpmLimit, setTpmLimit] = useState("");
-  const [rpdLimit, setRpdLimit] = useState("");
+  // TPM/RPD 量级大,用「数字 + 单位(K/M/B)」输入;入库换算成真实整数。
+  const [tpmLimit, setTpmLimit] = useState<RateLimitFieldValue>({
+    ...EMPTY_RATE_LIMIT,
+  });
+  const [rpdLimit, setRpdLimit] = useState<RateLimitFieldValue>({
+    ...EMPTY_RATE_LIMIT,
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
 
@@ -95,19 +108,19 @@ export function CreateApiKeyDialog({
   const mutation = useMutation({
     mutationFn: () =>
       createApiKey({
-        projectId,
+        userId,
         name: name.trim(),
         expiresAt: expiresLocal ? localToRFC3339(expiresLocal) : undefined,
         spendLimit: spendLimit.trim() || undefined,
-        routeId: routeId ? Number(routeId) : undefined,
+        routeId: Number(routeId),
         rateLimits: {
           rpm: parseRateLimit(rpmLimit),
-          tpm: parseRateLimit(tpmLimit),
-          rpd: parseRateLimit(rpdLimit),
+          tpm: composeRateLimit(tpmLimit),
+          rpd: composeRateLimit(rpdLimit),
         },
       }),
     onSuccess: (key) => {
-      queryClient.invalidateQueries({ queryKey: ["api-keys", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["api-keys", userId] });
       setCreated(key);
     },
     onError: (err) => {
@@ -123,8 +136,8 @@ export function CreateApiKeyDialog({
       setSpendLimit("");
       setRouteId("");
       setRpmLimit("");
-      setTpmLimit("");
-      setRpdLimit("");
+      setTpmLimit({ ...EMPTY_RATE_LIMIT });
+      setRpdLimit({ ...EMPTY_RATE_LIMIT });
       setErrors({});
       setCreated(null);
       mutation.reset();
@@ -139,9 +152,12 @@ export function CreateApiKeyDialog({
     if (spendLimit.trim() !== "" && !MONEY_PATTERN.test(spendLimit.trim())) {
       next.spendLimit = "需为非负金额";
     }
+    if (routeId === "") {
+      next.routeId = "请选择线路";
+    }
     next.rpm = rateLimitError(rpmLimit);
-    next.tpm = rateLimitError(tpmLimit);
-    next.rpd = rateLimitError(rpdLimit);
+    next.tpm = rateLimitWithUnitError(tpmLimit);
+    next.rpd = rateLimitWithUnitError(rpdLimit);
     setErrors(next);
     return Object.values(next).every((v) => v === undefined);
   }
@@ -171,14 +187,16 @@ export function CreateApiKeyDialog({
             <DialogHeader>
               <DialogTitle>API Key 已创建</DialogTitle>
               <DialogDescription>
-                明文只展示这一次，请立即复制并妥善保存。
+                请复制并妥善保存；之后也可在 Key 列表里再次复制完整明文。
               </DialogDescription>
             </DialogHeader>
 
             <Alert>
               <TriangleAlertIcon />
-              <AlertTitle>关闭后将无法再次查看完整明文</AlertTitle>
-              <AlertDescription>仅保留前缀 {created.key_prefix} 用于识别。</AlertDescription>
+              <AlertTitle>请妥善保管完整明文</AlertTitle>
+              <AlertDescription>
+                明文已留存，可在 Key 列表「复制完整 Key」再次取用（前缀 {created.key_prefix}）。
+              </AlertDescription>
             </Alert>
 
             <div className="flex items-center gap-2">
@@ -213,7 +231,9 @@ export function CreateApiKeyDialog({
             <form onSubmit={handleSubmit}>
               <FieldGroup>
                 <Field data-invalid={!!errors.name}>
-                  <FieldLabel htmlFor="key_name">名称</FieldLabel>
+                  <HintLabel htmlFor="key_name" hint="API Key 名称，仅用于后台识别。">
+                    名称
+                  </HintLabel>
                   <Input
                     id="key_name"
                     value={name}
@@ -226,7 +246,12 @@ export function CreateApiKeyDialog({
                 </Field>
 
                 <Field data-invalid={!!errors.spendLimit}>
-                  <FieldLabel htmlFor="key_spend_limit">费用上限</FieldLabel>
+                  <HintLabel
+                    htmlFor="key_spend_limit"
+                    hint="生命周期累计花费上限，达到后该 Key 自动停用；留空表示不限额。"
+                  >
+                    费用上限
+                  </HintLabel>
                   <Input
                     id="key_spend_limit"
                     value={spendLimit}
@@ -236,31 +261,36 @@ export function CreateApiKeyDialog({
                     aria-invalid={!!errors.spendLimit}
                   />
                   <FieldError>{errors.spendLimit}</FieldError>
-                  <FieldDescription>累计花费达到上限后自动停用</FieldDescription>
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="key_expires">过期时间</FieldLabel>
+                  <HintLabel htmlFor="key_expires" hint="Key 过期时间；留空表示永不过期。">
+                    过期时间
+                  </HintLabel>
                   <Input
                     id="key_expires"
                     type="datetime-local"
                     value={expiresLocal}
                     onChange={(e) => setExpiresLocal(e.target.value)}
                   />
-                  <FieldDescription>留空表示永不过期</FieldDescription>
                 </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="key_route">线路</FieldLabel>
-                  <Select
-                    value={routeId || "none"}
-                    onValueChange={(v) => setRouteId(v === "none" ? "" : v)}
+                <Field data-invalid={!!errors.routeId}>
+                  <HintLabel
+                    htmlFor="key_route"
+                    hint="该 Key 使用的线路（必选）：决定选路策略与候选渠道池。"
                   >
-                    <SelectTrigger id="key_route" className="w-full">
-                      <SelectValue />
+                    线路
+                  </HintLabel>
+                  <Select value={routeId} onValueChange={setRouteId}>
+                    <SelectTrigger
+                      id="key_route"
+                      className="w-full"
+                      aria-invalid={!!errors.routeId}
+                    >
+                      <SelectValue placeholder="请选择线路" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">默认（项目默认 / 内置经济）</SelectItem>
                       {routes.map((r) => (
                         <SelectItem key={r.id} value={String(r.id)}>
                           {r.name}
@@ -268,13 +298,13 @@ export function CreateApiKeyDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldDescription>
-                    决定该 Key 的选路策略与候选池；不选则回落项目默认 / 内置经济
-                  </FieldDescription>
+                  <FieldError>{errors.routeId}</FieldError>
                 </Field>
 
                 <Field>
-                  <FieldLabel>令牌级限流（P2-8）</FieldLabel>
+                  <HintLabel hint="令牌级限流（用户→网关侧）：RPM 每分钟请求 / TPM 每分钟 token / RPD 每日请求；TPM、RPD 可带单位 K/M/B（默认 K）；留空=继承全局默认，0=不限。">
+                    令牌级限流
+                  </HintLabel>
                   <div className="grid grid-cols-3 gap-4">
                     <Field data-invalid={!!errors.rpm}>
                       <FieldLabel htmlFor="key_rpm">RPM</FieldLabel>
@@ -291,34 +321,25 @@ export function CreateApiKeyDialog({
                     </Field>
                     <Field data-invalid={!!errors.tpm}>
                       <FieldLabel htmlFor="key_tpm">TPM</FieldLabel>
-                      <Input
+                      <RateLimitInput
                         id="key_tpm"
-                        type="number"
-                        min={0}
                         value={tpmLimit}
-                        onChange={(e) => setTpmLimit(e.target.value)}
-                        placeholder="继承默认"
-                        aria-invalid={!!errors.tpm}
+                        onChange={setTpmLimit}
+                        ariaInvalid={!!errors.tpm}
                       />
                       <FieldError>{errors.tpm}</FieldError>
                     </Field>
                     <Field data-invalid={!!errors.rpd}>
                       <FieldLabel htmlFor="key_rpd">RPD</FieldLabel>
-                      <Input
+                      <RateLimitInput
                         id="key_rpd"
-                        type="number"
-                        min={0}
                         value={rpdLimit}
-                        onChange={(e) => setRpdLimit(e.target.value)}
-                        placeholder="继承默认"
-                        aria-invalid={!!errors.rpd}
+                        onChange={setRpdLimit}
+                        ariaInvalid={!!errors.rpd}
                       />
                       <FieldError>{errors.rpd}</FieldError>
                     </Field>
                   </div>
-                  <FieldDescription>
-                    每分钟请求数 / 每分钟 token 数 / 每日请求数；留空=继承全局默认，0=不限。
-                  </FieldDescription>
                 </Field>
               </FieldGroup>
 

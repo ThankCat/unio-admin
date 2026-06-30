@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   getUserOpsDetail,
   getUserOpsKeys,
   type UserOpsRow,
 } from "@/lib/api/customerOps";
-import type { User } from "@/lib/api/users";
+import { getUser } from "@/lib/api/users";
 import { formatCompact, formatPercent, formatUSD } from "@/lib/format";
 import { ConfigurableDataTable } from "@/components/data-table";
 import {
@@ -29,13 +30,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 /** 用户运维详情正文（子页面用）。 */
 export function UserDetailContent({ row, range }: { row: UserOpsRow; range: { from?: string; to?: string; range?: string } }) {
   const [tab, setTab] = useState("overview");
-  const userObj: User = {
-    id: row.id,
-    email: row.email,
-    display_name: row.display_name,
-    created_at: "",
-    updated_at: "",
-  };
+  const userDetail = useQuery({
+    queryKey: ["user", row.id],
+    queryFn: () => getUser(row.id),
+  });
   const detail = useQuery({
     queryKey: ["user", row.id, "ops-detail", range],
     queryFn: () => getUserOpsDetail(row.id, range),
@@ -47,6 +45,7 @@ export function UserDetailContent({ row, range }: { row: UserOpsRow; range: { fr
     enabled: tab === "keys",
   });
   const d = detail.data;
+  const user = userDetail.data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -54,12 +53,21 @@ export function UserDetailContent({ row, range }: { row: UserOpsRow; range: { fr
         <div className="min-w-0">
           <h2 className="font-heading truncate text-lg font-semibold tracking-tight">{row.email}</h2>
           <p className="text-muted-foreground mt-0.5 text-sm">
-            {row.display_name} · 项目 {row.project_count} · Key {row.key_total}
+            {row.display_name} · Key {row.key_total}
           </p>
         </div>
-        <UserBalanceDialog user={userObj}>
-          <Button size="sm">调额</Button>
-        </UserBalanceDialog>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm">
+            <Link to={`/users/${row.id}/api-keys`}>管理 API Key</Link>
+          </Button>
+          {user ? (
+            <UserBalanceDialog user={user}>
+              <Button size="sm">调额</Button>
+            </UserBalanceDialog>
+          ) : (
+            <Skeleton className="h-8 w-16" />
+          )}
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

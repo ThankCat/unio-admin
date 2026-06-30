@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { createModel, updateModel, type Model } from "@/lib/api/models";
 import { apiErrorMessage } from "@/lib/api/client";
 import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,10 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 import {
   Select,
@@ -199,7 +198,12 @@ export function ModelFormDialog({
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={!!errors.model_id}>
-              <FieldLabel htmlFor="model_id">对外模型 ID</FieldLabel>
+              <HintLabel
+                htmlFor="model_id"
+                hint="客户调用 API 时使用的模型名；字母或数字开头，仅含字母、数字与 . _ : -，长度 1–128；创建后不可修改。"
+              >
+                对外模型 ID
+              </HintLabel>
               <Input
                 id="model_id"
                 value={modelId}
@@ -209,15 +213,13 @@ export function ModelFormDialog({
                 disabled={isEdit}
                 autoFocus={!isEdit}
               />
-              {isEdit ? (
-                <FieldDescription>创建后不可修改</FieldDescription>
-              ) : (
-                <FieldError>{errors.model_id}</FieldError>
-              )}
+              <FieldError>{errors.model_id}</FieldError>
             </Field>
 
             <Field data-invalid={!!errors.display_name}>
-              <FieldLabel htmlFor="display_name">展示名</FieldLabel>
+              <HintLabel htmlFor="display_name" hint="模型对外展示名称，用于后台与客户端展示。">
+                展示名
+              </HintLabel>
               <Input
                 id="display_name"
                 value={displayName}
@@ -231,7 +233,9 @@ export function ModelFormDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <Field data-invalid={!!errors.owned_by}>
-                <FieldLabel htmlFor="owned_by">归属方</FieldLabel>
+                <HintLabel htmlFor="owned_by" hint="模型归属方/提供方标识（如 deepseek、openai）。">
+                  归属方
+                </HintLabel>
                 <Input
                   id="owned_by"
                   value={ownedBy}
@@ -243,7 +247,9 @@ export function ModelFormDialog({
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="status">状态</FieldLabel>
+                <HintLabel htmlFor="status" hint="停用后该模型不对客户开放调用。">
+                  状态
+                </HintLabel>
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger id="status" className="w-full">
                     <SelectValue />
@@ -258,7 +264,9 @@ export function ModelFormDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <Field data-invalid={!!errors.max_output_tokens}>
-                <FieldLabel htmlFor="max_output_tokens">最大输出 token</FieldLabel>
+                <HintLabel htmlFor="max_output_tokens" hint="模型单次回复的最大输出 token 数；可选。">
+                  最大输出 token
+                </HintLabel>
                 <Input
                   id="max_output_tokens"
                   type="number"
@@ -272,7 +280,12 @@ export function ModelFormDialog({
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="context_window_tokens">上下文长度</FieldLabel>
+                <HintLabel
+                  htmlFor="context_window_tokens"
+                  hint="模型上下文窗口大小；可选，仅作展示，不参与计费。"
+                >
+                  上下文长度
+                </HintLabel>
                 <Input
                   id="context_window_tokens"
                   type="number"
@@ -286,7 +299,12 @@ export function ModelFormDialog({
 
             <div className="grid grid-cols-3 gap-4">
               <Field>
-                <FieldLabel htmlFor="input_price">输入价格基线</FieldLabel>
+                <HintLabel
+                  htmlFor="input_price"
+                  hint="输入侧价格基线（USD/百万 token）；仅作展示，不参与计费（计费以售价/成本价为准）。"
+                >
+                  输入价格基线
+                </HintLabel>
                 <Input
                   id="input_price"
                   value={inputPrice}
@@ -295,7 +313,12 @@ export function ModelFormDialog({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="output_price">输出价格基线</FieldLabel>
+                <HintLabel
+                  htmlFor="output_price"
+                  hint="输出侧价格基线（USD/百万 token）；仅作展示，不参与计费（计费以售价/成本价为准）。"
+                >
+                  输出价格基线
+                </HintLabel>
                 <Input
                   id="output_price"
                   value={outputPrice}
@@ -304,7 +327,9 @@ export function ModelFormDialog({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="release_date">发布日期</FieldLabel>
+                <HintLabel htmlFor="release_date" hint="模型发布日期；可选，仅作展示。">
+                  发布日期
+                </HintLabel>
                 <Input
                   id="release_date"
                   type="date"
@@ -313,9 +338,6 @@ export function ModelFormDialog({
                 />
               </Field>
             </div>
-            <FieldDescription>
-              价格基线与上下文长度仅作展示，不参与计费（计费以售价/成本价为准）。
-            </FieldDescription>
           </FieldGroup>
 
           <DialogFooter className="mt-6">

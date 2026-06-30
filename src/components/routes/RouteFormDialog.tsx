@@ -5,6 +5,7 @@ import { createRoute, updateRoute, type Route } from "@/lib/api/routes";
 import { listChannels } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
 import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,10 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 import {
   Select,
@@ -67,6 +66,7 @@ function RouteForm({
   const [mode, setMode] = useState(route?.mode ?? "cheapest");
   const [poolKind, setPoolKind] = useState(route?.pool_kind ?? "all");
   const [status, setStatus] = useState(route?.status ?? "enabled");
+  const [priceRatio, setPriceRatio] = useState(route?.price_ratio ?? "1");
   const [description, setDescription] = useState(route?.description ?? "");
   const [channelIds, setChannelIds] = useState<number[]>(
     route?.channels.map((c) => c.channel_id) ?? [],
@@ -89,6 +89,7 @@ function RouteForm({
         mode,
         pool_kind: effectivePool,
         status,
+        price_ratio: priceRatio.trim() || "1",
         description: description.trim() || null,
         channel_ids: effectivePool === "all" ? [] : channelIds,
       };
@@ -104,6 +105,10 @@ function RouteForm({
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (name.trim() === "") next.name = "线路名不能为空";
+    const ratio = priceRatio.trim();
+    if (ratio !== "" && (!/^\d+(\.\d+)?$/.test(ratio) || Number(ratio) < 0)) {
+      next.price_ratio = "需为 ≥ 0 的倍率（如 1、1.5、0.8）";
+    }
     if (effectivePool === "explicit") {
       if (mode === "fixed" && channelIds.length !== 1) {
         next.channels = "固定线路必须恰好选择一条渠道";
@@ -149,7 +154,12 @@ function RouteForm({
       <FieldGroup className="py-4">
         <div className="grid grid-cols-2 gap-4">
           <Field data-invalid={!!errors.name}>
-            <FieldLabel htmlFor="rt_name">线路名</FieldLabel>
+            <HintLabel
+              htmlFor="rt_name"
+              hint="线路名称，仅用于后台识别；线路即分组，供 API Key 选用。"
+            >
+              线路名
+            </HintLabel>
             <Input
               id="rt_name"
               value={name}
@@ -160,7 +170,9 @@ function RouteForm({
             <FieldError>{errors.name}</FieldError>
           </Field>
           <Field>
-            <FieldLabel htmlFor="rt_status">状态</FieldLabel>
+            <HintLabel htmlFor="rt_status" hint="停用后该线路不可被 API Key 选用。">
+              状态
+            </HintLabel>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger id="rt_status" className="w-full">
                 <SelectValue />
@@ -175,7 +187,12 @@ function RouteForm({
 
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel htmlFor="rt_mode">选路策略</FieldLabel>
+            <HintLabel
+              htmlFor="rt_mode"
+              hint="在候选渠道中如何选路：经济=售价最低，稳定=健康优先，固定=锁定单条渠道。"
+            >
+              选路策略
+            </HintLabel>
             <Select value={mode} onValueChange={setMode}>
               <SelectTrigger id="rt_mode" className="w-full">
                 <SelectValue />
@@ -188,7 +205,12 @@ function RouteForm({
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="rt_pool">候选池</FieldLabel>
+            <HintLabel
+              htmlFor="rt_pool"
+              hint="候选渠道范围：全量=该模型所有可用渠道；手挑=仅指定渠道。固定策略固定为手挑池。"
+            >
+              候选池
+            </HintLabel>
             <Select value={effectivePool} onValueChange={setPoolKind} disabled={mode === "fixed"}>
               <SelectTrigger id="rt_pool" className="w-full">
                 <SelectValue />
@@ -198,18 +220,32 @@ function RouteForm({
                 <SelectItem value="explicit">手挑渠道</SelectItem>
               </SelectContent>
             </Select>
-            <FieldDescription>
-              {mode === "fixed" ? "固定策略固定为手挑池" : "全量=该模型所有可用渠道"}
-            </FieldDescription>
           </Field>
         </div>
 
+        <Field data-invalid={!!errors.price_ratio}>
+          <HintLabel
+            htmlFor="rt_ratio"
+            hint="客户售价 = 模型基准价 × 倍率（1=原价，1.5=加价 50%，0.8=8 折）。"
+          >
+            售价倍率
+          </HintLabel>
+          <Input
+            id="rt_ratio"
+            value={priceRatio}
+            onChange={(e) => setPriceRatio(e.target.value)}
+            placeholder="1.0"
+            inputMode="decimal"
+            aria-invalid={!!errors.price_ratio}
+          />
+          <FieldError>{errors.price_ratio}</FieldError>
+        </Field>
+
         {effectivePool === "explicit" && (
           <Field data-invalid={!!errors.channels}>
-            <FieldLabel>渠道池</FieldLabel>
-            <FieldDescription>
-              {mode === "fixed" ? "固定线路：恰好选择一条渠道" : "手挑线路：至少选择一条渠道"}
-            </FieldDescription>
+            <HintLabel hint="手动指定本线路的候选渠道；手挑线路至少选一条，固定线路恰好选一条。">
+              渠道池
+            </HintLabel>
             {channelsQuery.isPending ? (
               <Skeleton className="h-24 w-full" />
             ) : (
@@ -241,7 +277,9 @@ function RouteForm({
         )}
 
         <Field>
-          <FieldLabel htmlFor="rt_desc">简介（可选）</FieldLabel>
+          <HintLabel htmlFor="rt_desc" hint="展示给客户的商品说明；可选。">
+            简介（可选）
+          </HintLabel>
           <Input
             id="rt_desc"
             value={description}

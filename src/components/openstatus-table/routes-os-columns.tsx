@@ -97,7 +97,6 @@ function EditRouteAction({ row }: { row: RouteOpsRow }) {
         variant="ghost"
         size="icon-sm"
         aria-label="编辑"
-        disabled={row.is_builtin}
         onClick={() => setOpen(true)}
       >
         <PencilIcon />
@@ -130,7 +129,6 @@ export function routeOsColumns(): ColumnDef<RouteOpsRow, unknown>[] {
           text={
             <span className="inline-flex items-center gap-1.5">
               {row.original.name}
-              {row.original.is_builtin ? <Badge variant="outline">内置</Badge> : null}
             </span>
           }
           title={row.original.name}
@@ -217,11 +215,11 @@ export function routeOsColumns(): ColumnDef<RouteOpsRow, unknown>[] {
     },
     {
       id: "bindings",
-      accessorFn: (r) => r.bound_projects,
+      accessorFn: (r) => r.bound_users,
       header: ({ column }) => <ColumnHeader column={column} title="绑定" />,
       cell: ({ row }) => (
         <span className="tabular-nums">
-          {row.original.bound_projects}/{row.original.bound_keys}
+          {row.original.bound_users}/{row.original.bound_keys}
         </span>
       ),
     },

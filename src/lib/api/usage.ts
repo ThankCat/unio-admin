@@ -8,7 +8,6 @@ export interface UsageSummary {
   request_record_id: number;
   request_id: string;
   user_id: number;
-  project_id: number;
   api_key_id: number;
   requested_model_id: string;
   response_model_id: string | null;
@@ -29,7 +28,6 @@ export interface UsageListParams {
   pageSize: number;
   sort?: string;
   userId?: number;
-  projectId?: number;
   model?: string;
   from?: string;
   to?: string;
@@ -46,7 +44,6 @@ export async function listUsage(
         page_size: params.pageSize,
         sort: params.sort,
         user_id: params.userId,
-        project_id: params.projectId,
         model: params.model,
         from: params.from,
         to: params.to,

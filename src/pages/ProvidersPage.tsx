@@ -12,7 +12,7 @@ import { useOpsServerTable } from "@/hooks/useOpsServerTable";
 
 export function ProvidersPage() {
   const table = useOpsServerTable({
-    queryKey: "providers-ops",
+    queryKey: "providers",
     fetch: getProvidersOpsTable,
     defaultSort: { id: "success_rate", desc: false },
   });

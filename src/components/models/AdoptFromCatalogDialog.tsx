@@ -12,6 +12,7 @@ import {
 import { listCapabilityKeys, type SupportLevel } from "@/lib/api/capability";
 import { AddCapabilitiesDialog } from "@/components/capability/AddCapabilitiesDialog";
 import { apiErrorMessage } from "@/lib/api/client";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -27,10 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 import {
   Select,
@@ -188,7 +187,12 @@ function AdoptForm({
       <FieldGroup>
         <div className="grid grid-cols-2 gap-4">
           <Field data-invalid={!!modelIdError}>
-            <FieldLabel htmlFor="adopt_model_id">对外模型 ID</FieldLabel>
+            <HintLabel
+              htmlFor="adopt_model_id"
+              hint="客户调用 API 时使用的模型名；字母或数字开头，仅含字母、数字与 . _ : -，长度 1–128；创建后不可修改。"
+            >
+              对外模型 ID
+            </HintLabel>
             <Input
               id="adopt_model_id"
               value={modelId}
@@ -196,11 +200,12 @@ function AdoptForm({
               aria-invalid={!!modelIdError}
               autoFocus
             />
-            <FieldDescription>客户调用名，创建后不可改</FieldDescription>
             <FieldError>{modelIdError}</FieldError>
           </Field>
           <Field>
-            <FieldLabel htmlFor="adopt_display_name">展示名</FieldLabel>
+            <HintLabel htmlFor="adopt_display_name" hint="模型对外展示名称，用于后台与客户端展示。">
+              展示名
+            </HintLabel>
             <Input
               id="adopt_display_name"
               value={displayName}
@@ -211,7 +216,9 @@ function AdoptForm({
 
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel htmlFor="adopt_owned_by">归属方</FieldLabel>
+            <HintLabel htmlFor="adopt_owned_by" hint="模型归属方/提供方标识（如 deepseek、openai）。">
+              归属方
+            </HintLabel>
             <Input
               id="adopt_owned_by"
               value={ownedBy}
@@ -219,7 +226,9 @@ function AdoptForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="adopt_status">状态</FieldLabel>
+            <HintLabel htmlFor="adopt_status" hint="采纳后模型的初始状态；停用则暂不对客户开放调用。">
+              状态
+            </HintLabel>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger id="adopt_status" className="w-full">
                 <SelectValue />
@@ -233,7 +242,9 @@ function AdoptForm({
         </div>
 
         <Field>
-          <FieldLabel>能力 ({caps.length})</FieldLabel>
+          <HintLabel hint="从目录预填的模型能力清单，可增删条目或调整支持级别后再采纳。">
+            能力 ({caps.length})
+          </HintLabel>
           <div className="flex flex-col gap-2">
             {caps.length === 0 ? (
               <p className="text-muted-foreground text-sm">

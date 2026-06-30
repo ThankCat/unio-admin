@@ -1,7 +1,7 @@
 import { api } from "@/lib/api/client";
 import type { ListMeta, ListParams, Page } from "@/lib/api/types";
 
-// 与后端 channelDTO 对齐；不含 credential（凭据只写不回）。
+// 与后端 channelDTO 对齐；含 credential（产品决策：渠道凭据明文存储，可查看/复制/编辑）。
 // provider_name 列表与单条读取均由后端补全；编辑表单仍会用 providers 列表兜底。
 export interface Channel {
   id: number;
@@ -11,6 +11,8 @@ export interface Channel {
   protocol: string;
   adapter_key: string;
   base_url: string;
+  // 明文上游 API key（产品决策：明文存储，管理端可查看/复制/编辑）。
+  credential: string;
   status: string;
   priority: number;
   timeout_ms: number | null;

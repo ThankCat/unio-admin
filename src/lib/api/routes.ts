@@ -2,7 +2,7 @@ import { api } from "@/lib/api/client";
 
 // 与后端 routeDTO 对齐（阶段 15：线路 = 渠道商品）。
 // mode: cheapest | stable | fixed；pool_kind: all（动态全量）| explicit（手挑渠道）。
-// is_builtin 的内置「经济/稳定」只读不可删；channels 仅 explicit 线路有值。
+// channels 仅 explicit 线路有值。
 export interface RouteChannel {
   channel_id: number;
   channel_name: string;
@@ -15,8 +15,9 @@ export interface Route {
   name: string;
   mode: string;
   pool_kind: string;
-  is_builtin: boolean;
   status: string;
+  // price_ratio 客户售价倍率（DEC-026：客户售价 = 模型基准价 × 倍率），十进制字符串。
+  price_ratio: string;
   description: string | null;
   channels: RouteChannel[];
   created_at: string;
@@ -38,6 +39,7 @@ export interface CreateRouteInput {
   mode: string;
   pool_kind: string;
   status: string;
+  price_ratio: string; // 客户售价倍率（十进制字符串，空=默认 1.0）
   description: string | null;
   channel_ids: number[];
 }

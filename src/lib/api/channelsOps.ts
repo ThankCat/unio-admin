@@ -97,7 +97,6 @@ export interface ChannelOpsRoute {
   mode: string;
   pool_kind: string;
   status: string;
-  is_builtin: boolean;
 }
 
 export interface ChannelsOpsTableParams extends RangeQuery {

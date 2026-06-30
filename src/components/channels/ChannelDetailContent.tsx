@@ -4,10 +4,15 @@ import {
   ActivityIcon,
   BoxIcon,
   CircleCheckIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   KeyRoundIcon,
   RouteIcon,
   ScrollTextIcon,
 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { getChannel } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
@@ -466,12 +471,23 @@ function CredentialSection({ channelId }: { channelId: number }) {
     queryKey: ["channel", channelId],
     queryFn: () => getChannel(channelId),
   });
+  const [revealed, setRevealed] = useState(false);
 
   if (channelQ.isPending) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (channelQ.isError) return <ErrorBox message={(channelQ.error as Error).message} />;
 
   const channel = channelQ.data;
   if (!channel) return null;
+
+  async function copyCredential() {
+    if (!channel?.credential) return;
+    try {
+      await navigator.clipboard.writeText(channel.credential);
+      toast.success("已复制凭据到剪贴板");
+    } catch {
+      toast.error("复制失败，请手动选择复制");
+    }
+  }
 
   return (
     <SectionFrame className="p-4">
@@ -480,10 +496,33 @@ function CredentialSection({ channelId }: { channelId: number }) {
           <EmptyMedia variant="icon">
             <KeyRoundIcon />
           </EmptyMedia>
-          <div className="min-w-0 space-y-1">
-            <p className="font-medium">凭据</p>
-            <p className="text-muted-foreground text-sm">
-              凭据只写不回显。最近更新：
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="font-medium">凭据（上游 API Key）</p>
+            <div className="flex items-center gap-2">
+              <code className="bg-muted flex-1 truncate rounded-md px-3 py-2 font-mono text-sm">
+                {revealed ? channel.credential || "—" : "••••••••••••••••"}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={revealed ? "隐藏" : "显示"}
+                onClick={() => setRevealed((v) => !v)}
+              >
+                {revealed ? <EyeOffIcon /> : <EyeIcon />}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="复制凭据"
+                onClick={copyCredential}
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              明文存储，可查看/复制；如需修改请用「轮换凭据」。最近更新：
               {channel.updated_at ? formatRelativeTime(channel.updated_at) : "—"}。
             </p>
           </div>

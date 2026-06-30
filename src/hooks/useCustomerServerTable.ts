@@ -19,7 +19,7 @@ interface UseCustomerServerTableOptions<T> {
   defaultSort: { id: string; desc: boolean };
 }
 
-/** 用户 / 项目运维表：分页 / 排序 / search。 */
+/** 用户运维表：分页 / 排序 / search。 */
 export function useCustomerServerTable<T>({
   queryKey,
   fetch,

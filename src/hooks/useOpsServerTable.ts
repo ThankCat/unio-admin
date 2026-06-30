@@ -13,6 +13,9 @@ const STATUS_OPTIONS = [
 ] as const;
 
 interface UseOpsServerTableOptions<T> {
+  // queryKey 为实体前缀（如 "providers" / "channels" / "models" / "routes"）。
+  // 列表查询键统一组成 [entity, "ops-list", ...]，使各实体写操作 invalidateQueries({queryKey:[entity]})
+  // 能前缀命中本列表并自动刷新（修复「创建后需手动刷新」）。
   queryKey: string;
   fetch: (params: {
     range: "all";
@@ -41,7 +44,7 @@ export function useOpsServerTable<T>({
   const search = useDebouncedValue(searchInput.trim(), 300);
 
   const query = useQuery({
-    queryKey: [queryKey, page, sort, status, search],
+    queryKey: [queryKey, "ops-list", page, sort, status, search],
     queryFn: () =>
       fetch({
         range: "all",

@@ -2,6 +2,7 @@ import { useState, type SubmitEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { HintLabel } from "@/components/common/field-hint";
 import {
   Card,
   CardContent,
@@ -17,7 +18,6 @@ import {
   Field,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 
 export function LoginPage() {
@@ -60,7 +60,9 @@ export function LoginPage() {
           <CardContent>
             <FieldGroup>
               <Field data-invalid={!!error}>
-                <FieldLabel htmlFor="token">访问 Token</FieldLabel>
+                <HintLabel htmlFor="token" hint="管理端访问 Token，校验通过后登录控制台。">
+                  访问 Token
+                </HintLabel>
                 <Input
                   id="token"
                   type="password"

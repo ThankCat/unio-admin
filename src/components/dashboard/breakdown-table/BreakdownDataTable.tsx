@@ -130,7 +130,7 @@ export function BreakdownDataTable({
     <div className="flex flex-col gap-3">
       {dimension === "route" ? (
         <p className="text-muted-foreground text-xs">
-          按 API Key / 项目当前线路绑定归因，变更绑定后历史会重算。
+          按 API Key / 用户当前线路绑定归因，变更绑定后历史会重算。
         </p>
       ) : null}
       <ConfigurableDataTable

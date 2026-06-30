@@ -8,7 +8,6 @@ export interface RequestSummary {
   id: number;
   request_id: string;
   user_id: number;
-  project_id: number;
   api_key_id: number;
   requested_model_id: string;
   ingress_protocol: string;
@@ -88,7 +87,6 @@ export interface RequestListParams {
   status?: string;
   model?: string;
   userId?: number;
-  projectId?: number;
   apiKeyId?: number;
   from?: string;
   to?: string;
@@ -107,7 +105,6 @@ export async function listRequests(
         status: params.status,
         model: params.model,
         user_id: params.userId,
-        project_id: params.projectId,
         api_key_id: params.apiKeyId,
         from: params.from,
         to: params.to,

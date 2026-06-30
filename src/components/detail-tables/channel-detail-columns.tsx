@@ -183,12 +183,7 @@ export function channelOpsRouteColumns(): ColumnDef<ChannelOpsRoute, unknown>[] 
       minSize: 140,
       enableHiding: false,
       cell: ({ row }) => (
-        <span className="text-sm font-medium">
-          {row.original.name}
-          {row.original.is_builtin ? (
-            <Badge variant="outline" className="ml-1.5">内置</Badge>
-          ) : null}
-        </span>
+        <span className="text-sm font-medium">{row.original.name}</span>
       ),
     }),
     resizableColumn<ChannelOpsRoute>("mode", {

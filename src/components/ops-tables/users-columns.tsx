@@ -28,11 +28,6 @@ export function userOpsColumns(): ColumnDef<UserOpsRow, unknown>[] {
       size: 112,
       cell: ({ row }) => formatUSD(row.original.available_usd),
     }),
-    resizableColumn<UserOpsRow>("project_count", {
-      header: "项目",
-      size: 80,
-      cell: ({ row }) => row.original.project_count,
-    }),
     resizableColumn<UserOpsRow>("key_total", {
       header: "Key",
       size: 72,

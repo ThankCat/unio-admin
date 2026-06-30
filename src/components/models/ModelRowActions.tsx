@@ -8,6 +8,7 @@ import { apiErrorMessage } from "@/lib/api/client";
 import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
 import { ModelFormDialog } from "@/components/models/ModelFormDialog";
 import { ModelCapabilitiesDialog } from "@/components/models/ModelCapabilitiesDialog";
+import { ModelPricesDialog } from "@/components/models/ModelPricesDialog";
 import { DeleteModelDialog } from "@/components/models/DeleteModelDialog";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -36,10 +37,12 @@ export function ModelRowActions({ modelId }: { modelId: number }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [capOpen, setCapOpen] = useState(false);
+  const [pricesOpen, setPricesOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
-  const needModel = editOpen || capOpen || deleteOpen || menuOpen || statusConfirmOpen;
+  const needModel =
+    editOpen || capOpen || pricesOpen || deleteOpen || menuOpen || statusConfirmOpen;
   const modelQ = useQuery({
     queryKey: ["model", modelId],
     queryFn: () => getModel(modelId),
@@ -96,6 +99,7 @@ export function ModelRowActions({ modelId }: { modelId: number }) {
               {model?.status === "enabled" ? "停用" : "启用"}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => openDialog(setCapOpen)}>能力</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openDialog(setPricesOpen)}>基准价</DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => openDialog(setDeleteOpen)}
@@ -110,6 +114,7 @@ export function ModelRowActions({ modelId }: { modelId: number }) {
         <>
           <ModelFormDialog open={editOpen} onOpenChange={setEditOpen} model={model} />
           <ModelCapabilitiesDialog model={model} open={capOpen} onOpenChange={setCapOpen} />
+          <ModelPricesDialog model={model} open={pricesOpen} onOpenChange={setPricesOpen} />
           <DeleteModelDialog model={model} open={deleteOpen} onOpenChange={setDeleteOpen} />
           <StatusChangeConfirmDialog
             open={statusConfirmOpen}

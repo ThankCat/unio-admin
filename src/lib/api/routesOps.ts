@@ -9,7 +9,6 @@ export interface RoutesOpsSummary {
   total: number;
   enabled: number;
   disabled: number;
-  builtin: number;
   request_total: number;
   succeeded: number;
   success_rate: number;
@@ -24,9 +23,10 @@ export interface RouteOpsRow {
   name: string;
   mode: string;
   pool_kind: string;
-  is_builtin: boolean;
   status: string;
   description: string;
+  // 客户售价倍率（DEC-026：客户售价 = 模型基准价 × 倍率）。
+  price_ratio: string;
   request_total: number;
   request_succeeded: number;
   success_rate: number;
@@ -34,7 +34,7 @@ export interface RouteOpsRow {
   fallback_rate: number;
   no_channel_total: number;
   latency_p95: number;
-  bound_projects: number;
+  bound_users: number;
   bound_keys: number;
   pool_channels: number;
   serviceable: boolean;
@@ -60,21 +60,21 @@ export interface RouteOpsChannelPoolItem {
   provider_name: string;
 }
 
-export interface RouteOpsBoundProject {
+export interface RouteOpsBoundUser {
   id: number;
-  name: string;
-  user_id: number;
+  email: string;
+  display_name: string;
 }
 
 export interface RouteOpsBoundKey {
   id: number;
   name: string;
-  project_id: number;
+  user_id: number;
   status: string;
 }
 
 export interface RouteOpsBindings {
-  projects: RouteOpsBoundProject[];
+  users: RouteOpsBoundUser[];
   keys: RouteOpsBoundKey[];
 }
 

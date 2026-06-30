@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/providers";
 import { apiErrorMessage } from "@/lib/api/client";
 import { StatusChangeConfirmDialog } from "@/components/common/StatusChangeConfirmDialog";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,10 +24,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
 } from "@/components/ui/field";
 import {
   Select,
@@ -137,7 +136,12 @@ export function ProviderFormDialog({
         <form onSubmit={handleSubmit}>
           <FieldGroup>
             <Field data-invalid={!!errors.slug}>
-              <FieldLabel htmlFor="slug">标识（slug）</FieldLabel>
+              <HintLabel
+                htmlFor="slug"
+                hint="服务商稳定业务标识；小写字母或数字开头，仅含小写字母、数字、连字符，长度 1–64；创建后不可修改。"
+              >
+                标识（slug）
+              </HintLabel>
               <Input
                 id="slug"
                 value={slug}
@@ -147,15 +151,13 @@ export function ProviderFormDialog({
                 disabled={isEdit}
                 autoFocus={!isEdit}
               />
-              {isEdit ? (
-                <FieldDescription>创建后不可修改</FieldDescription>
-              ) : (
-                <FieldError>{errors.slug}</FieldError>
-              )}
+              <FieldError>{errors.slug}</FieldError>
             </Field>
 
             <Field data-invalid={!!errors.name}>
-              <FieldLabel htmlFor="name">名称</FieldLabel>
+              <HintLabel htmlFor="name" hint="服务商展示名称，仅用于后台识别。">
+                名称
+              </HintLabel>
               <Input
                 id="name"
                 value={name}
@@ -168,7 +170,12 @@ export function ProviderFormDialog({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="status">状态</FieldLabel>
+              <HintLabel
+                htmlFor="status"
+                hint="停用后其下渠道不参与路由，新请求不再走这些渠道。"
+              >
+                状态
+              </HintLabel>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger id="status" className="w-full">
                   <SelectValue />

@@ -3,7 +3,6 @@ import {
   ActivityIcon,
   BoxIcon,
   CableIcon,
-  FolderIcon,
   GaugeIcon,
   LayoutDashboardIcon,
   LogOutIcon,
@@ -65,7 +64,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "客户中心",
     items: [
       { title: "用户", to: "/users", icon: UsersIcon },
-      { title: "项目", to: "/projects", icon: FolderIcon },
     ],
   },
   {
@@ -97,7 +95,7 @@ function isItemActive(
 }
 
 function isEntityDetailPath(pathname: string): boolean {
-  return /\/(providers|channels|models|routes|users|projects)\/\d+/.test(pathname);
+  return /\/(providers|channels|models|routes|users)\/\d+/.test(pathname);
 }
 
 export function AppLayout() {

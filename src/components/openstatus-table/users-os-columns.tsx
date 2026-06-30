@@ -19,7 +19,6 @@ export const USER_OS_COLUMN_LABELS: Record<string, string> = {
   email: "用户",
   balance: "余额",
   available: "可用",
-  projects: "项目",
   keys: "Key",
   requests: "请求",
   consumption: "消费",
@@ -71,12 +70,6 @@ export function userOsColumns(): ColumnDef<UserOpsRow, unknown>[] {
       accessorFn: (r) => Number(r.available_usd),
       header: ({ column }) => <ColumnHeader column={column} title="可用" />,
       cell: ({ row }) => <span className="tabular-nums">{formatUSD(row.original.available_usd)}</span>,
-    },
-    {
-      id: "projects",
-      accessorKey: "project_count",
-      header: ({ column }) => <ColumnHeader column={column} title="项目" />,
-      cell: ({ row }) => <span className="tabular-nums">{row.original.project_count}</span>,
     },
     {
       id: "keys",

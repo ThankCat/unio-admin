@@ -17,7 +17,7 @@ export function RoutesPage() {
   const queryClient = useQueryClient();
 
   const table = useOpsServerTable({
-    queryKey: "routes-ops",
+    queryKey: "routes",
     fetch: getRoutesOpsTable,
     defaultSort: { id: "success_rate", desc: false },
   });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { deleteRoute, getRoute, type Route } from "@/lib/api/routes";
@@ -89,7 +89,6 @@ export function RouteDetailContent({ row, range }: { row: RouteOpsRow; range: Ra
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-heading text-lg font-semibold tracking-tight">{row.name}</h2>
-            {row.is_builtin ? <Badge variant="outline">内置</Badge> : null}
             <Badge variant={row.status === "enabled" ? "default" : "outline"}>
               {row.status === "enabled" ? "启用" : "停用"}
             </Badge>
@@ -100,29 +99,27 @@ export function RouteDetailContent({ row, range }: { row: RouteOpsRow; range: Ra
             )}
           </div>
           <p className="text-muted-foreground mt-0.5 text-sm">
-            {row.mode} · {row.pool_kind === "all" ? "全量动态" : "手挑渠道"} · 绑定 项目{" "}
-            {row.bound_projects} / Key {row.bound_keys}
+            {row.mode} · {row.pool_kind === "all" ? "全量动态" : "手挑渠道"} · 绑定 用户{" "}
+            {row.bound_users} / Key {row.bound_keys}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"
-            disabled={!routeQ.data || row.is_builtin}
+            disabled={!routeQ.data}
             onClick={() => setEditOpen(true)}
           >
             编辑
           </Button>
-          {!row.is_builtin ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setDeleteOpen(true)}
-              disabled={del.isPending}
-            >
-              删除
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDeleteOpen(true)}
+            disabled={del.isPending}
+          >
+            删除
+          </Button>
         </div>
       </div>
 
@@ -177,7 +174,7 @@ export function RouteDetailContent({ row, range }: { row: RouteOpsRow; range: Ra
           setDeleteOpen(o);
         }}
         title="删除线路"
-        description={`确认删除线路「${row.name}」？删除不可恢复，删除后该线路将立即停止服务，绑定到它的项目与 Key 需另行调整。`}
+        description={`确认删除线路「${row.name}」？删除不可恢复，删除后该线路将立即停止服务，绑定到它的用户与 Key 需另行调整。`}
         confirmLabel="确认删除"
         destructive
         pending={del.isPending}
@@ -300,23 +297,9 @@ function BindingsTab({ id }: { id: number }) {
   const q = useQuery({ queryKey: ["route", id, "ops-bindings"], queryFn: () => getRouteOpsBindings(id) });
   if (q.isPending) return <Skeleton className="h-40 w-full" />;
   if (q.isError) return <ErrorBox message={(q.error as Error).message} />;
-  const { projects, keys } = q.data;
+  const { keys } = q.data;
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <div className="text-muted-foreground mb-1 text-xs">默认线路指向本线路的项目（{projects.length}）</div>
-        {projects.length === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">无</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {projects.map((p) => (
-              <Button key={p.id} asChild size="sm" variant="outline">
-                <Link to={`/projects/${p.id}`}>{p.name}</Link>
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
       <div>
         <div className="text-muted-foreground mb-1 text-xs">绑定本线路的 API Key（{keys.length}）</div>
         {keys.length === 0 ? (

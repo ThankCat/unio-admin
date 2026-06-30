@@ -1,12 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { updateApiKey, type ApiKey } from "@/lib/api/apiKeys";
+import { listRoutes } from "@/lib/api/routes";
 import { apiErrorMessage } from "@/lib/api/client";
-import { trimDecimal } from "@/lib/format";
 import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
@@ -19,37 +18,43 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Field,
-  FieldError,
-  FieldGroup,
-} from "@/components/ui/field";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Field, FieldGroup } from "@/components/ui/field";
 
-const MONEY_PATTERN = /^\d+(\.\d+)?$/;
-
-// 设置/清除 API Key 费用上限（生命周期累计封顶）。
-export function ApiKeySpendLimitDialog({
+// 换绑 API Key 线路（每条 Key 必须绑定一条线路）。
+export function ApiKeyRouteDialog({
   apiKey,
   children,
 }: {
-  apiKey: ApiKey;
+  apiKey: Pick<ApiKey, "id" | "user_id" | "name" | "route_id">;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState("");
-  const [error, setError] = useState<string>();
+  const [routeId, setRouteId] = useState(String(apiKey.route_id));
 
   const queryClient = useQueryClient();
 
+  const routesQuery = useQuery({
+    queryKey: ["routes"],
+    queryFn: listRoutes,
+    enabled: open,
+  });
+  const routes = (routesQuery.data ?? []).filter((r) => r.status === "enabled");
+
   const mutation = useMutation({
-    // 空串 = 清除上限（改为不限额）；否则设为该金额。
-    mutationFn: () => updateApiKey({ id: apiKey.id, spendLimit: value.trim() }),
-    onSuccess: (key) => {
+    mutationFn: () =>
+      updateApiKey({
+        id: apiKey.id,
+        routeId: Number(routeId),
+      }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["api-keys", apiKey.user_id] });
-      toast.success(
-        key.spend_limit === null
-          ? "已改为不限额"
-          : `费用上限已设为 ${trimDecimal(key.spend_limit)}`,
-      );
+      toast.success("已换绑线路");
       setOpen(false);
     },
     onError: (err) => {
@@ -60,20 +65,17 @@ export function ApiKeySpendLimitDialog({
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
-      setValue(apiKey.spend_limit ? trimDecimal(apiKey.spend_limit) : "");
-      setError(undefined);
+      setRouteId(String(apiKey.route_id));
       mutation.reset();
     }
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const trimmed = value.trim();
-    if (trimmed !== "" && !MONEY_PATTERN.test(trimmed)) {
-      setError("需为非负金额，或留空表示不限额");
+    if (Number(routeId) === apiKey.route_id) {
+      setOpen(false);
       return;
     }
-    setError(undefined);
     mutation.mutate();
   }
 
@@ -82,30 +84,32 @@ export function ApiKeySpendLimitDialog({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>费用上限</DialogTitle>
+          <DialogTitle>换绑线路</DialogTitle>
           <DialogDescription>
-            {apiKey.name} · 已累计花费 {trimDecimal(apiKey.spent_total)}
+            {apiKey.name} · 每条 Key 必须绑定一条线路，决定选路策略与候选渠道池
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
-            <Field data-invalid={!!error}>
+            <Field>
               <HintLabel
-                htmlFor="spend_limit"
-                hint="生命周期累计花费上限，达到后该 Key 自动停用；留空表示不限额。"
+                htmlFor="key_route_edit"
+                hint="选择该 Key 使用的线路；仅可换绑到其他已启用线路，不可清除。"
               >
-                上限金额
+                线路
               </HintLabel>
-              <Input
-                id="spend_limit"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="留空表示不限额"
-                inputMode="decimal"
-                aria-invalid={!!error}
-                autoFocus
-              />
-              <FieldError>{error}</FieldError>
+              <Select value={routeId} onValueChange={setRouteId}>
+                <SelectTrigger id="key_route_edit" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {routes.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </FieldGroup>
 
@@ -115,7 +119,7 @@ export function ApiKeySpendLimitDialog({
                 取消
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || routesQuery.isPending}>
               {mutation.isPending && <Spinner data-icon="inline-start" />}
               {mutation.isPending ? "保存中..." : "保存"}
             </Button>

@@ -15,7 +15,7 @@ export function ChannelsPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const table = useOpsServerTable({
-    queryKey: "channels-ops",
+    queryKey: "channels",
     fetch: getChannelsOpsTable,
     defaultSort: { id: "success_rate", desc: false },
   });

@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { RouteOpsRow } from "@/lib/api/routesOps";
 import { resizableColumn } from "@/components/data-table";
-import { formatCompact, formatLatencyMs, formatPercent } from "@/lib/format";
+import { formatCompact, formatLatencyMs, formatPercent, trimDecimal } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 
 const MODE_LABEL: Record<string, string> = {
@@ -21,7 +21,6 @@ export function routeOpsColumns(): ColumnDef<RouteOpsRow, unknown>[] {
         <>
           <div className="flex items-center gap-1.5 truncate font-medium">
             {row.original.name}
-            {row.original.is_builtin ? <Badge variant="outline">内置</Badge> : null}
           </div>
           <div className="text-muted-foreground truncate text-xs">
             {row.original.pool_kind === "all" ? "全量动态" : "手挑渠道"}
@@ -35,6 +34,13 @@ export function routeOpsColumns(): ColumnDef<RouteOpsRow, unknown>[] {
       size: 88,
       cell: ({ row }) => (
         <span className="text-xs">{MODE_LABEL[row.original.mode] ?? row.original.mode}</span>
+      ),
+    }),
+    resizableColumn<RouteOpsRow>("price_ratio", {
+      header: "倍率",
+      size: 72,
+      cell: ({ row }) => (
+        <span className="text-xs tabular-nums">×{trimDecimal(row.original.price_ratio)}</span>
       ),
     }),
     resizableColumn<RouteOpsRow>("serviceable", {
@@ -84,7 +90,7 @@ export function routeOpsColumns(): ColumnDef<RouteOpsRow, unknown>[] {
     resizableColumn<RouteOpsRow>("bindings", {
       header: "绑定",
       size: 96,
-      cell: ({ row }) => `${row.original.bound_projects}/${row.original.bound_keys}`,
+      cell: ({ row }) => `${row.original.bound_users}/${row.original.bound_keys}`,
     }),
   ];
 }

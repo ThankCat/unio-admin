@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { rotateChannelCredential, type Channel } from "@/lib/api/channels";
 import { apiErrorMessage } from "@/lib/api/client";
+import { HintLabel } from "@/components/common/field-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -15,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError } from "@/components/ui/field";
 
 // 受控弹窗：内层表单随 open 挂载/卸载，重新打开自动清空上次输入。
 export function RotateCredentialDialog({
@@ -75,13 +76,18 @@ function RotateForm({
       <DialogHeader>
         <DialogTitle>轮换凭据</DialogTitle>
         <DialogDescription>
-          为「{channel.name}」写入新的上游凭据；旧凭据立即失效，且不可回读。
+          为「{channel.name}」写入新的上游凭据；保存后立即生效，可在详情查看/复制。
         </DialogDescription>
       </DialogHeader>
 
       <form onSubmit={handleSubmit}>
         <Field data-invalid={!!error}>
-          <FieldLabel htmlFor="new_credential">新凭据</FieldLabel>
+          <HintLabel
+            htmlFor="new_credential"
+            hint="调用上游用的新 API Key；明文存储，保存后立即生效，可在详情查看/复制。"
+          >
+            新凭据
+          </HintLabel>
           <Input
             id="new_credential"
             type="password"
@@ -92,7 +98,6 @@ function RotateForm({
             autoComplete="off"
             autoFocus
           />
-          <FieldDescription>加密落库、不可回读</FieldDescription>
           <FieldError>{error}</FieldError>
         </Field>
 

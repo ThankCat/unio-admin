@@ -72,12 +72,6 @@ const UsersPage = lazy(() =>
 const UserDetailPage = lazy(() =>
   import("@/pages/UserDetailPage").then((m) => ({ default: m.UserDetailPage })),
 );
-const ProjectsPage = lazy(() =>
-  import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })),
-);
-const ProjectDetailPage = lazy(() =>
-  import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage })),
-);
 const ApiKeysPage = lazy(() =>
   import("@/pages/ApiKeysPage").then((m) => ({ default: m.ApiKeysPage })),
 );
@@ -117,12 +111,7 @@ function App() {
             <Route path="system" element={<SystemPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="users/:userId" element={<UserDetailPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route
-              path="projects/:projectId/api-keys"
-              element={<ApiKeysPage />}
-            />
-            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+            <Route path="users/:userId/api-keys" element={<ApiKeysPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

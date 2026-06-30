@@ -5,13 +5,13 @@ import { api } from "@/lib/api/client";
 // spend_limit 为 null 表示不限额；spent_total 是迄今累计被扣金额。
 export interface ApiKey {
   id: number;
-  project_id: number;
+  user_id: number;
   name: string;
   key_prefix: string;
   status: string;
   spend_limit: string | null;
   spent_total: string;
-  route_id: number | null;
+  route_id: number;
   // 令牌级限流（P2-8）：null=继承全局默认，0=不限，>0=具体上限。
   rpm_limit: number | null;
   tpm_limit: number | null;
@@ -37,14 +37,14 @@ export interface RateLimitsInput {
 }
 
 export interface CreateApiKeyInput {
-  projectId: number;
+  userId: number;
   name: string;
   // RFC3339，可选过期时间。
   expiresAt?: string | null;
   // 费用上限（十进制字符串），不传/空串表示不限额。
   spendLimit?: string;
-  // 线路绑定（阶段 15）：线路 id，不传/null 表示不绑（回落项目默认/内置经济）。
-  routeId?: number | null;
+  // 线路绑定（必填）：正整数 route id。
+  routeId: number;
   // 可选令牌级限流；省略表示三维全继承全局默认。
   rateLimits?: RateLimitsInput;
 }
@@ -53,12 +53,12 @@ export async function createApiKey(
   input: CreateApiKeyInput,
 ): Promise<CreatedApiKey> {
   const res = await api.post<{ data: CreatedApiKey }>(
-    `/admin/v1/projects/${input.projectId}/api-keys`,
+    `/admin/v1/users/${input.userId}/api-keys`,
     {
       name: input.name,
       expires_at: input.expiresAt || undefined,
       spend_limit: input.spendLimit ?? undefined,
-      route_id: input.routeId ?? undefined,
+      route_id: input.routeId,
       rate_limits: input.rateLimits ?? undefined,
     },
   );
@@ -66,12 +66,12 @@ export async function createApiKey(
 }
 
 // 更新：disabled 启停；spend_limit 设上限（""=清除上限/改为不限额，省略=不变）；
-// route_id 绑线路（number=设、null=清除、省略=不变）。
+// route_id 换绑线路（正整数；省略=不变，不可清除）。
 export interface UpdateApiKeyInput {
   id: number;
   disabled?: boolean;
   spendLimit?: string;
-  routeId?: number | null;
+  routeId?: number;
   // 令牌级限流；省略表示不变，传对象即原子替换三维。
   rateLimits?: RateLimitsInput;
 }

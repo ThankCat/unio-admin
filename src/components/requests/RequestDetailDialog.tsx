@@ -118,7 +118,6 @@ function DetailContent({ detail }: { detail: RequestDetail }) {
           <Row label="流式">{detail.stream ? "是" : "否"}</Row>
           <Row label="交付状态">{detail.delivery_status}</Row>
           <Row label="用户 ID">{detail.user_id}</Row>
-          <Row label="项目 ID">{detail.project_id}</Row>
           <Row label="API Key ID">{detail.api_key_id}</Row>
           <Row label="最终 Provider">{dash(detail.final_provider_id)}</Row>
           <Row label="最终 Channel">{dash(detail.final_channel_id)}</Row>
