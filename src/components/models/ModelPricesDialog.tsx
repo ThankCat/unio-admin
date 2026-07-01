@@ -92,8 +92,11 @@ function ModelPriceManager({ model }: { model: Model }) {
     queryFn: () => listModelPrices(model.id),
   });
 
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: pricesKey });
+    // 运维列表 [models, "ops-list", ...] 的基准价来自聚合接口，改价后需一并刷新。
+    queryClient.invalidateQueries({ queryKey: ["models"] });
+  };
 
   const prices = pricesQuery.data ?? [];
 

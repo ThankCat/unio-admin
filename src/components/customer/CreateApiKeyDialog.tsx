@@ -136,7 +136,7 @@ export function CreateApiKeyDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="min-w-0 overflow-hidden sm:max-w-lg">
         {created ? (
           <>
             <DialogHeader>
@@ -146,16 +146,16 @@ export function CreateApiKeyDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <Alert>
+            <Alert className="min-w-0">
               <TriangleAlertIcon />
               <AlertTitle>请妥善保管完整明文</AlertTitle>
-              <AlertDescription>
+              <AlertDescription className="break-words">
                 明文已留存，可在 Key 列表「复制完整 Key」再次取用（前缀 {created.key_prefix}）。
               </AlertDescription>
             </Alert>
 
-            <div className="flex items-center gap-2">
-              <code className="bg-muted flex-1 truncate rounded-md px-3 py-2 font-mono text-sm">
+            <div className="flex min-w-0 items-center gap-2">
+              <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md px-3 py-2 font-mono text-xs sm:text-sm">
                 {created.plaintext}
               </code>
               <Button

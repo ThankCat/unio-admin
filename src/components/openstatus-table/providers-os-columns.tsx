@@ -69,9 +69,9 @@ export const PROVIDER_OS_COLUMN_LABELS: Record<string, string> = {
   tokens: "Token",
   margin: "利润",
   timeout: "超时",
-  created_at: "创建时间",
   status: "状态",
   health: "健康",
+  created_at: "创建时间",
   action: "操作",
 };
 
@@ -186,16 +186,6 @@ export function providerOsColumns(): ColumnDef<ProviderOpsRow, unknown>[] {
       ),
     },
     {
-      id: "created_at",
-      accessorKey: "created_at",
-      header: ({ column }) => <ColumnHeader column={column} title="创建时间" />,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-xs tabular-nums">
-          {formatDateTime(row.original.created_at)}
-        </span>
-      ),
-    },
-    {
       id: "status",
       accessorKey: "status",
       header: ({ column }) => <ColumnHeader column={column} title="状态" />,
@@ -225,6 +215,16 @@ export function providerOsColumns(): ColumnDef<ProviderOpsRow, unknown>[] {
         <Badge variant={HEALTH_VARIANT[row.original.health]}>
           {HEALTH_LABEL[row.original.health]}
         </Badge>
+      ),
+    },
+    {
+      id: "created_at",
+      accessorKey: "created_at",
+      header: ({ column }) => <ColumnHeader column={column} title="创建时间" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {formatDateTime(row.original.created_at)}
+        </span>
       ),
     },
     {

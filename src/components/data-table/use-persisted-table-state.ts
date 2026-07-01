@@ -25,17 +25,22 @@ type StoredPrefsState = {
   prefs: TableLayoutPrefs;
 };
 
+function pinActionLast(order: ColumnOrderState): ColumnOrderState {
+  if (!order.includes("action")) return order;
+  return [...order.filter((id) => id !== "action"), "action"];
+}
+
 function mergeColumnOrder(
   saved: ColumnOrderState | undefined,
   defaultOrder: ColumnOrderState,
 ): ColumnOrderState {
-  if (!saved?.length) return defaultOrder;
+  if (!saved?.length) return pinActionLast(defaultOrder);
   const allowed = new Set(defaultOrder);
   const ordered = saved.filter((id) => allowed.has(id));
   for (const id of defaultOrder) {
     if (!ordered.includes(id)) ordered.push(id);
   }
-  return ordered;
+  return pinActionLast(ordered);
 }
 
 function loadPrefs(
