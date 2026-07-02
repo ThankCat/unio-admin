@@ -6,13 +6,11 @@ import { profitIntent, rateIntent } from "@/components/dashboard/metrics";
 import { RevenueTip } from "@/components/dashboard/RevenueTip";
 import { TipHoverCardContent } from "@/components/dashboard/TipHoverCardContent";
 import { STATUS_LABEL } from "@/components/dashboard/breakdown-table/constants";
-import { HEALTH_LABEL, HEALTH_VARIANT } from "@/components/channels/health";
 import { AttemptLatencyCell } from "@/components/ops-tables/AttemptLatencyCell";
 import { ProviderRowActions } from "@/components/providers/ProviderRowActions";
 import {
   formatCompact,
   formatDateTime,
-  formatInt,
   formatPercent,
   formatTPS,
   formatUSD,
@@ -57,6 +55,7 @@ const facetedFilter: FilterFn<ProviderOpsRow> = (row, columnId, filterValue) => 
 
 export const PROVIDER_OS_COLUMN_LABELS: Record<string, string> = {
   name: "服务商",
+  status: "状态",
   channels: "渠道",
   requests: "请求",
   success_rate: "成功率",
@@ -64,9 +63,6 @@ export const PROVIDER_OS_COLUMN_LABELS: Record<string, string> = {
   tps: "平均 TPS",
   tokens: "Token",
   margin: "利润",
-  timeout: "超时",
-  status: "状态",
-  health: "健康",
   created_at: "创建时间",
   action: "操作",
 };
@@ -85,6 +81,24 @@ export function providerOsColumns(): ColumnDef<ProviderOpsRow, unknown>[] {
           subtext={row.original.slug}
         />
       ),
+    },
+    {
+      id: "status",
+      accessorKey: "status",
+      header: ({ column }) => <ColumnHeader column={column} title="状态" />,
+      enableHiding: false,
+      meta: { label: "状态", fixedWidth: true },
+      filterFn: facetedFilter,
+      cell: ({ row }) =>
+        row.original.status ? (
+          <Badge
+            variant={row.original.status === "enabled" ? "default" : "secondary"}
+          >
+            {STATUS_LABEL[row.original.status] ?? row.original.status}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       id: "channels",
@@ -171,46 +185,6 @@ export function providerOsColumns(): ColumnDef<ProviderOpsRow, unknown>[] {
             />
           </TipHoverCardContent>
         </HoverCard>
-      ),
-    },
-    {
-      id: "timeout",
-      accessorKey: "timeout_total",
-      header: ({ column }) => <ColumnHeader column={column} title="超时" />,
-      cell: ({ row }) => (
-        <span className="tabular-nums">{formatInt(row.original.timeout_total)}</span>
-      ),
-    },
-    {
-      id: "status",
-      accessorKey: "status",
-      header: ({ column }) => <ColumnHeader column={column} title="状态" />,
-      enableHiding: false,
-      meta: { label: "状态", fixedWidth: true },
-      filterFn: facetedFilter,
-      cell: ({ row }) =>
-        row.original.status ? (
-          <Badge
-            variant={row.original.status === "enabled" ? "default" : "secondary"}
-          >
-            {STATUS_LABEL[row.original.status] ?? row.original.status}
-          </Badge>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
-      id: "health",
-      accessorKey: "health",
-      header: ({ column }) => <ColumnHeader column={column} title="健康" />,
-      enableSorting: false,
-      enableHiding: false,
-      meta: { label: "健康", fixedWidth: true },
-      filterFn: facetedFilter,
-      cell: ({ row }) => (
-        <Badge variant={HEALTH_VARIANT[row.original.health]}>
-          {HEALTH_LABEL[row.original.health]}
-        </Badge>
       ),
     },
     {

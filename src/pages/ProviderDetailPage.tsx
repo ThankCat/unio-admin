@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router-dom";
 import type { Provider } from "@/lib/api/providers";
 import { listAllProviders } from "@/lib/api/providers";
-import { getProviderOpsDetail, type ProviderOpsRow } from "@/lib/api/providersOps";
+import { getProviderOpsDetail, getProvidersOpsTable, type ProviderOpsRow } from "@/lib/api/providersOps";
 import { useRangeQuery } from "@/hooks/useRangeQuery";
 import { RangeFilter } from "@/components/common/RangeFilter";
 import { DetailPageHeader } from "@/components/common/DetailPageHeader";
@@ -69,6 +69,16 @@ export function ProviderDetailPage() {
     placeholderData: keepPreviousData,
   });
 
+  const opsRow = useQuery({
+    queryKey: ["providers", "ops-table", "row", providerId, rangeQuery],
+    queryFn: async () => {
+      const page = await getProvidersOpsTable({ ...rangeQuery, page: 1, page_size: 500 });
+      return page.items.find((p) => p.id === providerId) ?? null;
+    },
+    placeholderData: keepPreviousData,
+    enabled: allProviders.isSuccess,
+  });
+
   const providerEntity = useMemo(
     () => allProviders.data?.find((x) => x.id === providerId) ?? null,
     [allProviders.data, providerId],
@@ -86,7 +96,7 @@ export function ProviderDetailPage() {
     opsDetail.isPending && !opsDetail.data ? (
       <ProviderOverviewStatsSkeleton />
     ) : opsDetail.data ? (
-      <ProviderOverviewStats detail={opsDetail.data} />
+      <ProviderOverviewStats detail={opsDetail.data} health={opsRow.data?.health} />
     ) : null;
 
   return (
@@ -102,6 +112,7 @@ export function ProviderDetailPage() {
             </Badge>
           ) : null
         }
+        subtitle={providerEntity ? providerEntity.slug : null}
         actions={
           <RangeFilter
             value={value}
