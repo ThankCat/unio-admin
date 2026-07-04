@@ -50,6 +50,7 @@ export interface ChannelOpsRow {
   latency: LatencyStats;
   health: HealthBucket;
   bound_models: number;
+  bound_routes: number;
   recent_error_code: string;
   // 渠道级限流（P2-8）：null=继承全局默认，0=不限，>0=具体上限（每分钟请求/每分钟 token/每日请求）。
   rpm_limit: number | null;
@@ -59,6 +60,21 @@ export interface ChannelOpsRow {
   last_test_ok: boolean | null;
   last_test_latency_ms: number | null;
   last_test_error: string | null;
+  // 阶段二凭据闸门：false=系统判定凭据失效（连续 401 或检测判定），即使 status=enabled 也不参与路由。
+  credential_valid: boolean;
+}
+
+export interface ChannelTestLog {
+  id: number;
+  created_at: string;
+  source: string; // worker / manual / runtime_401
+  success: boolean;
+  error_code: string | null;
+  http_status: number | null;
+  latency_ms: number;
+  tested_model: string;
+  credential_valid_after: boolean;
+  message: string;
 }
 
 export interface ChannelOpsDetail {
@@ -106,6 +122,7 @@ export interface ChannelOpsRoute {
   mode: string;
   pool_kind: string;
   status: string;
+  price_ratio: string;
 }
 
 export interface ChannelsOpsTableParams extends RangeQuery {
@@ -199,4 +216,15 @@ export async function getChannelOpsRoutes(
     `/admin/v1/channels/${id}/ops/routes`,
   );
   return res.data.data;
+}
+
+export async function getChannelTestLogs(
+  id: number,
+  params: { page: number; page_size: number },
+): Promise<Page<ChannelTestLog>> {
+  const res = await api.get<{ data: ChannelTestLog[]; meta: ListMeta }>(
+    `/admin/v1/channels/${id}/test-logs`,
+    { params },
+  );
+  return { items: res.data.data, total: res.data.meta.total };
 }

@@ -30,6 +30,83 @@ export interface RequestSummary {
   updated_at: string;
 }
 
+// 与后端 requestListItemDTO 对齐：请求列表项（富化）= 请求事实 + 用量/成本/扣费 + 线路/渠道链 + 时延。
+// 费用类为 USD 十进制字符串，无结算快照 / 账本时为 null；latency/ttft 单位 ms，tps 为 t/s。
+export interface RequestListItem extends RequestSummary {
+  uncached_input_tokens: number;
+  cache_read_input_tokens: number;
+  cache_write_5m_input_tokens: number;
+  cache_write_1h_input_tokens: number;
+  output_tokens: number;
+  reasoning_output_tokens: number;
+  user_charge_usd: string | null;
+  total_cost_usd: string | null;
+  uncached_input_cost_usd: string | null;
+  cache_read_input_cost_usd: string | null;
+  cache_write_5m_input_cost_usd: string | null;
+  cache_write_1h_input_cost_usd: string | null;
+  output_cost_usd: string | null;
+  reasoning_output_cost_usd: string | null;
+  // 计费单价快照（USD 字符串，per_1m_tokens）：平台成本单价×6 + 用户售价单价×6，供「单价×tokens=金额」计算过程。
+  uncached_input_cost_unit_usd: string | null;
+  cache_read_input_cost_unit_usd: string | null;
+  cache_write_5m_input_cost_unit_usd: string | null;
+  cache_write_1h_input_cost_unit_usd: string | null;
+  output_cost_unit_usd: string | null;
+  reasoning_output_cost_unit_usd: string | null;
+  uncached_input_price_unit_usd: string | null;
+  cache_read_input_price_unit_usd: string | null;
+  cache_write_5m_input_price_unit_usd: string | null;
+  cache_write_1h_input_price_unit_usd: string | null;
+  output_price_unit_usd: string | null;
+  reasoning_output_price_unit_usd: string | null;
+  // 用户/Key：明文供列表点击复制（口径同 api-keys 页）。
+  api_key_name: string | null;
+  api_key_prefix: string | null;
+  api_key_plaintext: string | null;
+  route_name: string | null;
+  route_price_ratio: string | null;
+  route_mode: string | null;
+  final_channel_name: string | null;
+  channel_chain: string;
+  model_display_name: string | null;
+  model_owned_by: string | null;
+  // 归一推理强度 none/minimal/low/medium/high/xhigh；Anthropic 带原始预算；批二埋点，历史行为 null。
+  reasoning_effort: string | null;
+  reasoning_budget_tokens: number | null;
+  client_ip: string | null;
+  latency_ms: number | null;
+  ttft_ms: number | null;
+  tps: number | null;
+}
+
+// 与后端 costSnapshotDTO 对齐：平台成本快照（单价 per_1m_tokens + 金额，USD 字符串）。
+export interface CostSnapshot {
+  uncached_input_cost_unit: string | null;
+  cache_read_input_cost_unit: string | null;
+  cache_write_5m_input_cost_unit: string | null;
+  cache_write_1h_input_cost_unit: string | null;
+  output_cost_unit: string | null;
+  reasoning_output_cost_unit: string | null;
+  uncached_input_cost_amount: string | null;
+  cache_read_input_cost_amount: string | null;
+  cache_write_5m_input_cost_amount: string | null;
+  cache_write_1h_input_cost_amount: string | null;
+  output_cost_amount: string | null;
+  reasoning_output_cost_amount: string | null;
+  total_cost_amount: string | null;
+}
+
+// 与后端 priceSnapshotDTO 对齐：客户售价快照（单价 per_1m_tokens，USD 字符串）。
+export interface PriceSnapshot {
+  uncached_input_price: string | null;
+  cache_read_input_price: string | null;
+  cache_write_5m_input_price: string | null;
+  cache_write_1h_input_price: string | null;
+  output_price: string | null;
+  reasoning_output_price: string | null;
+}
+
 // 与后端 attemptDTO 对齐；internal_error_detail 仅在 include_internal=true 时出现。
 export interface Attempt {
   id: number;
@@ -76,6 +153,14 @@ export interface RequestUsage {
 // 与后端 requestDetailDTO 对齐：请求 + 上游尝试链 + usage + 账本流水 + 计费异常。
 export interface RequestDetail extends RequestSummary {
   internal_error_detail?: string | null;
+  route_id: number | null;
+  reasoning_effort: string | null;
+  reasoning_budget_tokens: number | null;
+  client_ip: string | null;
+  cost_snapshot: CostSnapshot | null;
+  price_snapshot: PriceSnapshot | null;
+  route_price_ratio: string | null;
+  route_mode: string | null;
   attempts: Attempt[];
   usage: RequestUsage | null;
   ledger_entries: LedgerEntry[];
@@ -96,8 +181,8 @@ export interface RequestListParams {
 
 export async function listRequests(
   params: RequestListParams,
-): Promise<Page<RequestSummary>> {
-  const res = await api.get<{ data: RequestSummary[]; meta: ListMeta }>(
+): Promise<Page<RequestListItem>> {
+  const res = await api.get<{ data: RequestListItem[]; meta: ListMeta }>(
     "/admin/v1/requests",
     {
       params: buildListQuery({

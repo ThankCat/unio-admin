@@ -3,7 +3,6 @@ import {
   ActivityIcon,
   BoxIcon,
   CableIcon,
-  GaugeIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   RouteIcon,
@@ -70,7 +69,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "请求中心",
     items: [
       { title: "请求记录", to: "/requests", icon: ActivityIcon },
-      { title: "用量分析", to: "/usage", icon: GaugeIcon },
       { title: "账本", to: "/ledger", icon: WalletIcon },
     ],
   },

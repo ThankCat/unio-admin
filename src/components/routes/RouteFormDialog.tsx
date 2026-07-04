@@ -247,7 +247,7 @@ function RouteForm({
           <Field>
             <HintLabel
               htmlFor="rt_mode"
-              hint="在候选渠道中如何选路：经济=售价最低，稳定=健康优先，固定=锁定单条渠道。"
+              hint="在候选渠道中如何选路：经济=售价最低，稳定=健康优先，固定=锁定单条渠道，随机=随机排序仍支持回退。"
             >
               选路策略
             </HintLabel>
@@ -259,6 +259,7 @@ function RouteForm({
                 <SelectItem value="cheapest">经济（售价最低）</SelectItem>
                 <SelectItem value="stable">稳定（健康优先）</SelectItem>
                 <SelectItem value="fixed">固定（锁定单渠道）</SelectItem>
+                <SelectItem value="random">随机（随机分摊）</SelectItem>
               </SelectContent>
             </Select>
           </Field>

@@ -2,6 +2,7 @@ export const ROUTE_MODE_LABEL: Record<string, string> = {
   cheapest: "经济",
   stable: "稳定",
   fixed: "固定",
+  random: "随机",
 };
 
 /** 候选池类型展示（与 ADMIN-IA §3.5 口径一致）。 */

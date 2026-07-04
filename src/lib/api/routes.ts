@@ -1,7 +1,7 @@
 import { api } from "@/lib/api/client";
 
 // 与后端 routeDTO 对齐（阶段 15：线路 = 渠道商品）。
-// mode: cheapest | stable | fixed；pool_kind: all（动态全量）| explicit（手挑渠道）。
+// mode: cheapest | stable | fixed | random；pool_kind: all（动态全量）| explicit（手挑渠道）。
 // channels 仅 explicit 线路有值。
 export interface RouteChannel {
   channel_id: number;

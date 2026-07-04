@@ -7,7 +7,7 @@ import {
 } from "@/lib/api/requests";
 import type { BillingException, LedgerEntry } from "@/lib/api/ledger";
 import { billingExceptionEventLabel } from "@/components/detail-tables/ledger-columns";
-import { formatDateTime, trimDecimal } from "@/lib/format";
+import { formatDateTime, formatLatencyMs, formatTPS, trimDecimal } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RequestStatusBadge } from "@/components/requests/RequestStatusBadge";
+import { RequestCostBreakdown } from "@/components/requests/cost-breakdown";
 
 // 证据中心弹窗：默认 children-trigger 自管 open；也支持受控（深链自动打开）。
 export function RequestDetailDialog({
@@ -102,6 +103,38 @@ function DetailBody({ requestId }: { requestId: string }) {
   );
 }
 
+// TimingSection 由请求时间戳 + 输出 token 计算首字/总耗时/TPS（与列表口径一致）。
+function TimingSection({ detail }: { detail: RequestDetail }) {
+  const started = new Date(detail.started_at).getTime();
+  const respStart = detail.response_started_at
+    ? new Date(detail.response_started_at).getTime()
+    : null;
+  const completed = detail.completed_at
+    ? new Date(detail.completed_at).getTime()
+    : null;
+
+  const latencyMs = completed != null && completed >= started ? completed - started : null;
+  const ttftMs = respStart != null && respStart >= started ? respStart - started : null;
+  const output = detail.usage?.output_tokens_total ?? 0;
+  let tps: number | null = null;
+  if (completed != null && respStart != null && output > 0) {
+    const genSec = (completed - respStart) / 1000;
+    if (genSec > 0) tps = output / genSec;
+  }
+
+  if (latencyMs == null && ttftMs == null && tps == null) return null;
+
+  return (
+    <Section title="时延">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+        <Row label="总耗时">{latencyMs != null ? formatLatencyMs(latencyMs) : "—"}</Row>
+        <Row label="首字 (TTFT)">{ttftMs != null ? formatLatencyMs(ttftMs) : "—"}</Row>
+        <Row label="TPS">{tps != null ? formatTPS(tps) : "—"}</Row>
+      </dl>
+    </Section>
+  );
+}
+
 function DetailContent({ detail }: { detail: RequestDetail }) {
   return (
     <div className="flex flex-col gap-5">
@@ -119,6 +152,14 @@ function DetailContent({ detail }: { detail: RequestDetail }) {
           <Row label="交付状态">{detail.delivery_status}</Row>
           <Row label="用户 ID">{detail.user_id}</Row>
           <Row label="API Key ID">{detail.api_key_id}</Row>
+          <Row label="客户端 IP">{dash(detail.client_ip)}</Row>
+          <Row label="推理强度">
+            {detail.reasoning_effort
+              ? detail.reasoning_budget_tokens != null
+                ? `${detail.reasoning_effort}（预算 ${detail.reasoning_budget_tokens.toLocaleString()}）`
+                : detail.reasoning_effort
+              : "—"}
+          </Row>
           <Row label="最终 Provider">{dash(detail.final_provider_id)}</Row>
           <Row label="最终 Channel">{dash(detail.final_channel_id)}</Row>
           <Row label="创建时间">{formatDateTime(detail.created_at)}</Row>
@@ -128,6 +169,8 @@ function DetailContent({ detail }: { detail: RequestDetail }) {
           </Row>
         </dl>
       </Section>
+
+      <TimingSection detail={detail} />
 
       {(detail.error_code || detail.error_message) && (
         <Section title="错误（对外）">
@@ -169,6 +212,8 @@ function DetailContent({ detail }: { detail: RequestDetail }) {
           <p className="text-muted-foreground text-sm">无用量记录</p>
         )}
       </Section>
+
+      <CostSection detail={detail} />
 
       <Section title={`账本流水（${detail.ledger_entries.length}）`}>
         {detail.ledger_entries.length === 0 ? (
@@ -242,6 +287,73 @@ function AttemptRow({ attempt }: { attempt: Attempt }) {
         </pre>
       )}
     </li>
+  );
+}
+
+function CostSection({ detail }: { detail: RequestDetail }) {
+  const u = detail.usage;
+  const cs = detail.cost_snapshot;
+  const ps = detail.price_snapshot;
+  if (!u && !cs && !ps) return null;
+
+  // 净扣费 = debit/adjustment_debit 之和 − credit/refund/adjustment_credit 之和（与列表口径一致）。
+  let userCharge: string | null = null;
+  if (detail.ledger_entries.length > 0) {
+    let net = 0;
+    for (const e of detail.ledger_entries) {
+      const amt = Number(e.amount);
+      if (Number.isNaN(amt)) continue;
+      if (e.entry_type === "debit" || e.entry_type === "adjustment_debit") net += amt;
+      else if (e.entry_type === "credit" || e.entry_type === "refund" || e.entry_type === "adjustment_credit")
+        net -= amt;
+    }
+    if (net !== 0) userCharge = String(net);
+  }
+
+  return (
+    <Section title="费用明细">
+      <RequestCostBreakdown
+        data={{
+          tokens: {
+            uncachedInput: u?.uncached_input_tokens ?? 0,
+            cacheRead: u?.cache_read_input_tokens ?? 0,
+            cacheWrite5m: u?.cache_write_5m_input_tokens ?? 0,
+            cacheWrite1h: u?.cache_write_1h_input_tokens ?? 0,
+            outputTotal: u?.output_tokens_total ?? 0,
+            reasoningOutput: u?.reasoning_output_tokens ?? 0,
+          },
+          costUnit: {
+            uncachedInput: cs?.uncached_input_cost_unit ?? null,
+            cacheRead: cs?.cache_read_input_cost_unit ?? null,
+            cacheWrite5m: cs?.cache_write_5m_input_cost_unit ?? null,
+            cacheWrite1h: cs?.cache_write_1h_input_cost_unit ?? null,
+            output: cs?.output_cost_unit ?? null,
+            reasoning: cs?.reasoning_output_cost_unit ?? null,
+          },
+          priceUnit: {
+            uncachedInput: ps?.uncached_input_price ?? null,
+            cacheRead: ps?.cache_read_input_price ?? null,
+            cacheWrite5m: ps?.cache_write_5m_input_price ?? null,
+            cacheWrite1h: ps?.cache_write_1h_input_price ?? null,
+            output: ps?.output_price ?? null,
+            reasoning: ps?.reasoning_output_price ?? null,
+          },
+          costAmount: cs
+            ? {
+                uncachedInput: cs.uncached_input_cost_amount,
+                cacheRead: cs.cache_read_input_cost_amount,
+                cacheWrite5m: cs.cache_write_5m_input_cost_amount,
+                cacheWrite1h: cs.cache_write_1h_input_cost_amount,
+                output: cs.output_cost_amount,
+                reasoning: cs.reasoning_output_cost_amount,
+                total: cs.total_cost_amount,
+              }
+            : null,
+          userCharge,
+          routeRatio: detail.route_price_ratio,
+        }}
+      />
+    </Section>
   );
 }
 

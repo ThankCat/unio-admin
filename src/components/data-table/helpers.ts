@@ -41,6 +41,7 @@ export const STANDARD_COLUMN_SIZES: Record<string, { size: number; minSize: numb
   latency_p95: { size: 112, minSize: 88 },
   timeout: { size: 80, minSize: 64 },
   bound_models: { size: 88, minSize: 64 },
+  bound_routes: { size: 88, minSize: 64 },
   recent_error: { size: 140, minSize: 100 },
   recent_error_code: { size: 140, minSize: 100 },
   protocol_adapter: { size: 140, minSize: 112 },
@@ -393,7 +394,7 @@ function formatDisplayAutoSizeValue(columnId: string, raw: unknown): unknown {
     return formatLatencyMs(typeof raw === "number" ? raw : Number(raw));
   }
   if (typeof raw === "number" && Number.isFinite(raw)) {
-    if (columnId === "bound_models") {
+    if (columnId === "bound_models" || columnId === "bound_routes") {
       return formatInt(raw);
     }
   }

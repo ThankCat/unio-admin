@@ -103,6 +103,23 @@ export function formatUSD(amount: string | number | null | undefined): string {
   }).format(n);
 }
 
+// 金额（高精度）：小额自动增加小数位，避免 $0.000351 被 2 位小数抹成 $0.00（请求费用/成本明细用）。
+export function formatUSDPrecise(amount: string | number | null | undefined): string {
+  if (amount == null || amount === "") return DASH;
+  const n = typeof amount === "string" ? Number(amount) : amount;
+  if (Number.isNaN(n)) return DASH;
+  const abs = Math.abs(n);
+  let maxDigits = 2;
+  if (abs > 0 && abs < 1) maxDigits = 6;
+  else if (abs < 100) maxDigits = 4;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxDigits,
+  }).format(n);
+}
+
 // 相对时间：x 秒/分钟/小时/天前；超 30 天回退绝对日期。
 export function formatRelativeTime(rfc: string | null | undefined): string {
   if (!rfc) return DASH;

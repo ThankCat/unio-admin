@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { SuccessBucket } from "@/lib/api/dashboard";
 import { formatInt, formatPercent } from "@/lib/format";
 
-export const SUCCESS_BUCKETS_VISIBLE = 32;
+export const SUCCESS_BUCKETS_VISIBLE = 16;
 export const SUCCESS_BUCKET_INTERVAL_MS = 10 * 60 * 1000;
 
 function successRateBarClass(rate: number | null | undefined): string {
@@ -101,6 +101,31 @@ export function displaySeriesBuckets(
     }));
 }
 
+/**
+ * 固定槽位渲染：始终 `slots` 根竖条（每根浅灰底），取最近 `slots` 个「有数据」的桶
+ * 按时序右对齐填入，其余为左侧空槽。兼顾「数量固定 + 每槽浅灰底 + 有数据处着色」，
+ * 且不因 10 分钟时间网格对齐把稀疏数据打散成一片空槽。无任何数据时返回空（只显示百分比）。
+ */
+export function displayFixedBuckets(
+  buckets: SuccessBucket[],
+  slots = SUCCESS_BUCKETS_VISIBLE,
+): DisplaySuccessBucket[] {
+  const valid = [...buckets]
+    .filter((bucket) => Number.isFinite(bucket.success_rate))
+    .sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime())
+    .slice(-slots);
+  if (valid.length === 0) return [];
+
+  const out: DisplaySuccessBucket[] = [];
+  for (let i = 0; i < slots - valid.length; i++) {
+    out.push({ key: `empty-${i}`, bucket: "", value: null });
+  }
+  valid.forEach((value, index) => {
+    out.push({ key: `${value.bucket}-${index}`, bucket: value.bucket, value });
+  });
+  return out;
+}
+
 /** 将性能时序点转为成功率桶（用于渠道详情等无 breakdown API 的场景）。 */
 export function perfPointsToSuccessBuckets(
   points: Array<{ bucket: string; attempt_total: number; attempt_succeeded: number }>,
@@ -132,8 +157,8 @@ export function SuccessRateTimeline({
   layout?: "compact" | "strip";
   /** 为 false 时只渲染柱形图（百分比由外部组件展示） */
   showPercent?: boolean;
-  /** grid：10 分钟槽位（概览 breakdown）；series：按 API 时序点逐柱 */
-  bucketMode?: "grid" | "series";
+  /** grid：10 分钟网格对齐；series：时序点逐柱；fixed：固定槽位（右对齐 + 空槽浅灰底） */
+  bucketMode?: "grid" | "series" | "fixed";
 }) {
   const filtered = (buckets ?? []).filter((bucket) =>
     Number.isFinite(bucket.success_rate),
@@ -141,7 +166,9 @@ export function SuccessRateTimeline({
   const displayBuckets =
     bucketMode === "series"
       ? displaySeriesBuckets(filtered)
-      : displaySuccessBuckets(filtered);
+      : bucketMode === "fixed"
+        ? displayFixedBuckets(filtered)
+        : displaySuccessBuckets(filtered);
 
   const percent = (
     <span
@@ -175,7 +202,8 @@ export function SuccessRateTimeline({
     <div
       className={cn(
         "flex h-4 min-w-0 items-end gap-px overflow-hidden",
-        layout === "strip" ? "h-5 flex-1" : barWidthClass,
+        // compact：填满 grid 的 1fr 轨道并随列宽收缩裁剪，避免固定宽度溢出压到右侧百分比。
+        layout === "strip" ? "h-5 flex-1" : "w-full",
       )}
     >
       {displayBuckets.map((bucket) => (

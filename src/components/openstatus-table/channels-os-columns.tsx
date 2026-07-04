@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { listChannelModels } from "@/lib/api/channelModels";
 import { listChannelPrices, pickCurrentChannelPrice } from "@/lib/api/channelPrices";
 import type { ChannelOpsRow } from "@/lib/api/channelsOps";
+import { getChannelOpsRoutes } from "@/lib/api/channelsOps";
 import {
   ChannelLastTestCell,
   channelLastTestAutoSizeLabel,
@@ -28,14 +29,17 @@ import {
 } from "@/components/ui/hover-card";
 import { ColumnHeader } from "./column-header";
 import { TruncateCell } from "./truncate-cell";
+import { formatRouteRatioInput } from "@/components/routes/route-pricing";
 
 export const CHANNEL_OS_COLUMN_LABELS: Record<string, string> = {
   name: "渠道",
   status: "状态",
+  credential_valid: "凭据状态",
   protocol_adapter: "协议/Adapter",
   credential: "凭证",
   rate_limit: "限流",
   bound_models: "模型",
+  bound_routes: "线路",
   timeout: "超时",
   last_test: "检测",
   created_at: "创建时间",
@@ -128,6 +132,73 @@ function BoundModelsCell({
   );
 }
 
+function BoundRoutesCell({
+  channelId,
+  boundRoutes,
+}: {
+  channelId: number;
+  boundRoutes: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const routesQuery = useQuery({
+    queryKey: ["channel-ops-routes", channelId],
+    queryFn: () => getChannelOpsRoutes(channelId),
+    enabled: open,
+  });
+  const routes = routesQuery.data ?? [];
+  const loading = routesQuery.isPending;
+
+  return (
+    <HoverCard open={open} onOpenChange={setOpen} openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <span
+          className={cn(
+            "tabular-nums",
+            "cursor-default underline decoration-dotted decoration-muted-foreground/40 underline-offset-2",
+          )}
+        >
+          {formatInt(boundRoutes)}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-80">
+        {loading ? (
+          <p className="text-muted-foreground text-xs">加载绑定线路…</p>
+        ) : routesQuery.isError ? (
+          <p className="text-destructive text-xs">加载失败</p>
+        ) : routes.length === 0 ? (
+          <p className="text-muted-foreground text-xs">暂无绑定线路</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <div className="text-muted-foreground text-xs font-medium">
+              绑定线路（{routes.length}）
+            </div>
+            <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+              {routes.map((rt) => (
+                <li
+                  key={rt.id}
+                  className="flex min-w-0 items-center justify-between gap-3"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate font-medium">{rt.name}</span>
+                    {rt.status !== "enabled" ? (
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        停用
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <span className="text-muted-foreground shrink-0 tabular-nums text-xs">
+                    ×{formatRouteRatioInput(rt.price_ratio) || "1"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 function ChannelProtocolAdapterCell({
   protocol,
   adapterKey,
@@ -179,8 +250,18 @@ export function channelOsColumns(): ColumnDef<ChannelOpsRow, unknown>[] {
       accessorKey: "name",
       header: ({ column }) => <ColumnHeader column={column} title="渠道" />,
       enableHiding: false,
+      meta: {
+        autoSizeValue: (row: ChannelOpsRow) => {
+          const provider = row.provider_name ? ` ${row.provider_name}` : "";
+          return `${row.name}${provider}`;
+        },
+      },
       cell: ({ row }) => (
-        <TruncateCell text={row.original.name} className="font-medium" />
+        <TruncateCell
+          text={row.original.name}
+          subtext={row.original.provider_name || undefined}
+          className="font-medium"
+        />
       ),
     },
     {
@@ -192,6 +273,26 @@ export function channelOsColumns(): ColumnDef<ChannelOpsRow, unknown>[] {
       cell: ({ row }) => (
         <StatusBadge status={row.original.status} />
       ),
+    },
+    {
+      id: "credential_valid",
+      accessorKey: "credential_valid",
+      header: ({ column }) => <ColumnHeader column={column} title="凭据状态" />,
+      meta: {
+        label: "凭据状态",
+        autoSizeValue: (row: ChannelOpsRow) =>
+          row.credential_valid === false ? "凭据失效" : "有效",
+      },
+      cell: ({ row }) =>
+        row.original.credential_valid === false ? (
+          <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+            凭据失效
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            有效
+          </Badge>
+        ),
     },
     {
       id: "protocol_adapter",
@@ -258,6 +359,17 @@ export function channelOsColumns(): ColumnDef<ChannelOpsRow, unknown>[] {
         <BoundModelsCell
           channelId={row.original.id}
           boundModels={row.original.bound_models}
+        />
+      ),
+    },
+    {
+      id: "bound_routes",
+      accessorKey: "bound_routes",
+      header: ({ column }) => <ColumnHeader column={column} title="线路" />,
+      cell: ({ row }) => (
+        <BoundRoutesCell
+          channelId={row.original.id}
+          boundRoutes={row.original.bound_routes}
         />
       ),
     },

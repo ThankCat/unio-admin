@@ -57,9 +57,6 @@ const CapabilityKeysPage = lazy(() =>
 const RequestsPage = lazy(() =>
   import("@/pages/RequestsPage").then((m) => ({ default: m.RequestsPage })),
 );
-const UsagePage = lazy(() =>
-  import("@/pages/UsagePage").then((m) => ({ default: m.UsagePage })),
-);
 const LedgerPage = lazy(() =>
   import("@/pages/LedgerPage").then((m) => ({ default: m.LedgerPage })),
 );
@@ -106,7 +103,6 @@ function App() {
             <Route path="capability-keys" element={<CapabilityKeysPage />} />
             <Route path="capability" element={<CapabilityPage />} />
             <Route path="requests" element={<RequestsPage />} />
-            <Route path="usage" element={<UsagePage />} />
             <Route path="ledger" element={<LedgerPage />} />
             <Route path="system" element={<SystemPage />} />
             <Route path="users" element={<UsersPage />} />

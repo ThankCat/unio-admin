@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ActivityIcon } from "lucide-react";
-import { listRequests } from "@/lib/api/requests";
+import { listRequests, type RequestListItem } from "@/lib/api/requests";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useServerList } from "@/hooks/useServerList";
 import { useRangeQuery } from "@/hooks/useRangeQuery";
@@ -26,6 +26,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RequestDetailDialog } from "@/components/requests/RequestDetailDialog";
 
 const PAGE_SIZE = 20;
+
+// 富化列多为自定义单元格（无 accessor），给列宽估算喂代表性文案，避免 Tokens/耗时/费用列过窄拥挤。
+const REQUEST_AUTOSIZE: Record<string, (r: RequestListItem) => string> = {
+  user_id: (r) => r.api_key_name || `Key #${r.api_key_id}`,
+  tokens: () => "↓999.99K / ↑99.99K",
+  timing: () => "12.34s  首字 9999ms · 999 t/s",
+  cost: () => "$0.000000",
+  request_id: () => "req_0123456789abcd…",
+};
+
+function requestAutoSizeValue(row: RequestListItem, columnId: string): unknown {
+  return REQUEST_AUTOSIZE[columnId]?.(row);
+}
 
 export function RequestsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -142,6 +155,7 @@ export function RequestsPage() {
           columns={columns}
           data={items}
           columnLabels={REQUEST_OS_COLUMN_LABELS}
+          getAutoSizeValue={requestAutoSizeValue}
           total={total}
           page={page}
           pageCount={pageCount}
