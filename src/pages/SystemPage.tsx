@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnthropicBetaPolicyCard } from "@/components/system/AnthropicBetaPolicyCard";
+import { RuntimeGatewaySettings } from "@/components/system/RuntimeGatewaySettings";
 
 const PAGE_SIZE = 20;
 
@@ -59,8 +60,8 @@ export function SystemPage() {
         <TabsList>
           <TabsTrigger value="recovery">结算补偿任务</TabsTrigger>
           <TabsTrigger value="sync">同步任务</TabsTrigger>
-          <TabsTrigger value="config">网关配置</TabsTrigger>
-          <TabsTrigger value="providers">Provider 设置</TabsTrigger>
+          <TabsTrigger value="config">网关配置(只读)</TabsTrigger>
+          <TabsTrigger value="providers">运行时配置</TabsTrigger>
         </TabsList>
         <TabsContent value="recovery" className="pt-4">
           <RecoveryTab />
@@ -71,7 +72,9 @@ export function SystemPage() {
         <TabsContent value="config" className="pt-4">
           <ConfigTab />
         </TabsContent>
-        <TabsContent value="providers" className="pt-4">
+        {/* 运行时配置：gateway 6 组热路径配置 + Anthropic beta 策略,均免重启生效。 */}
+        <TabsContent value="providers" className="flex flex-col gap-4 pt-4">
+          <RuntimeGatewaySettings />
           <AnthropicBetaPolicyCard />
         </TabsContent>
       </Tabs>

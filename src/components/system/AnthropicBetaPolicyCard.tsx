@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   getAnthropicBetaPolicy,
   updateAnthropicBetaPolicy,
+  listSettings,
   type AnthropicBetaMode,
   type AnthropicBetaPolicy,
 } from "@/lib/api/system";
@@ -64,14 +65,29 @@ export function AnthropicBetaPolicyCard() {
     }
   }, [query.data]);
 
+  // 生效值探针：/settings 返回的 value/source 就是 gateway 经 Redis 读到的当前值，用于验证配置已传播。
+  const effective = useQuery({
+    queryKey: ["settings-effective"],
+    queryFn: listSettings,
+    refetchInterval: 5000,
+  });
+  const betaEffective = effective.data?.find((s) => s.key === "anthropic.beta_policy");
+
   const mutation = useMutation({
     mutationFn: (policy: AnthropicBetaPolicy) => updateAnthropicBetaPolicy(policy),
     onSuccess: (saved) => {
       toast.success("已保存 Anthropic beta 策略");
       queryClient.setQueryData(["anthropic-beta-policy"], saved);
+      void effective.refetch();
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
+
+  const sourceLabel: Record<string, string> = {
+    redis: "已生效（Redis 实时源，gateway 秒级读到）",
+    db: "数据库（Redis 未命中，回退库）",
+    default: "内置默认（尚未保存过）",
+  };
 
   if (query.isError) {
     return (
@@ -131,6 +147,15 @@ export function AnthropicBetaPolicyCard() {
             每行一个 beta 名，如 <code>context-1m-2025-08-07</code>。留空即不拦截任何 beta。
           </p>
         </div>
+
+        {betaEffective && (
+          <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
+            <span className="font-medium text-foreground">当前生效</span>
+            {"："}
+            {sourceLabel[betaEffective.source] ?? betaEffective.source}
+            <span className="ml-1 font-mono">{JSON.stringify(betaEffective.value)}</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <Button

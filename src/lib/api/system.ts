@@ -180,3 +180,28 @@ export async function updateAnthropicBetaPolicy(
   );
   return res.data.data;
 }
+
+// 通用运行时配置项：注册元数据 + 当前生效值 + 生效来源（redis=已跨进程传播 / db / default）。
+export interface SettingItem {
+  key: string;
+  category: string;
+  label: string;
+  description: string;
+  hot_reload: boolean;
+  default: unknown;
+  value: unknown;
+  source: "redis" | "db" | "default" | "";
+}
+
+export async function listSettings(): Promise<SettingItem[]> {
+  const res = await api.get<{ data: SettingItem[] }>("/admin/v1/settings");
+  return res.data.data;
+}
+
+// 通用运行时配置写入：body 即该 key 的 JSON 值（后端按注册表校验，非法值 400）。
+// 写 DB + Redis，gateway 约 5s 内热生效（settingsApplier 周期推送）。
+export async function updateSetting(key: string, value: unknown): Promise<void> {
+  await api.put(`/admin/v1/settings/${encodeURIComponent(key)}`, value, {
+    headers: { "Content-Type": "application/json" },
+  });
+}
