@@ -11,7 +11,7 @@ export interface Page<T> {
   total: number;
 }
 
-export type StatusFilter = "enabled" | "disabled";
+type StatusFilter = "enabled" | "disabled";
 
 // 列表请求的通用查询参数。
 export interface ListParams {

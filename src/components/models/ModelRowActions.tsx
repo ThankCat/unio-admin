@@ -42,7 +42,12 @@ export function ModelRowActions({ modelId }: { modelId: number }) {
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
 
   const needModel =
-    editOpen || capOpen || pricesOpen || deleteOpen || menuOpen || statusConfirmOpen;
+    editOpen ||
+    capOpen ||
+    pricesOpen ||
+    deleteOpen ||
+    menuOpen ||
+    statusConfirmOpen;
   const modelQ = useQuery({
     queryKey: ["model", modelId],
     queryFn: () => getModel(modelId),

@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { getUsersOpsTable } from "@/lib/api/customerOps";
 import { ServerDataTable } from "@/components/openstatus-table";
 import {
@@ -9,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useServerTable } from "@/hooks/useServerTable";
 
 export function UsersPage() {
-  const navigate = useNavigate();
   const table = useServerTable({
     queryKey: "users",
     fetch: (p) => getUsersOpsTable({ range: "all", ...p }),
@@ -45,7 +43,6 @@ export function UsersPage() {
           chips={table.chips}
           onClearChips={table.resetFilters}
           pinnedColumnId="display_name"
-          onRowClick={(row) => navigate(`/users/${row.id}`)}
         />
       )}
     </div>

@@ -11,7 +11,7 @@ export interface ChannelLastTestInfo {
   last_test_error: string | null;
 }
 
-export function formatChannelTestLatency(ms: number | null | undefined): string | null {
+function formatChannelTestLatency(ms: number | null | undefined): string | null {
   if (ms == null) return null;
   return formatLatencySec(ms);
 }

@@ -5,23 +5,6 @@ import type { RangeQuery } from "@/lib/api/dashboard";
 
 // §3.4 模型商品控制台只读运维聚合（与后端 models_ops DTO 对齐）。
 
-export interface ModelsOpsSummary {
-  total: number;
-  enabled: number;
-  disabled: number;
-  sellable: number;
-  no_channel: number;
-  price_total: number;
-  price_with_price: number;
-  request_total: number;
-  succeeded: number;
-  success_rate: number;
-  revenue_usd: string;
-  cost_usd: string;
-  margin_usd: string;
-  margin_rate: number;
-}
-
 export interface ModelOpsRow {
   id: number;
   model_id: string;
@@ -105,16 +88,6 @@ export interface ModelsOpsTableParams extends RangeQuery {
   sort?: string;
   status?: string;
   search?: string;
-}
-
-export async function getModelsOpsSummary(
-  params: RangeQuery,
-): Promise<ModelsOpsSummary> {
-  const res = await api.get<{ data: ModelsOpsSummary }>(
-    "/admin/v1/models/ops/summary",
-    { params },
-  );
-  return res.data.data;
 }
 
 export async function getModelsOpsTable(

@@ -5,18 +5,6 @@ import type { RangeQuery } from "@/lib/api/dashboard";
 
 // §3.7 客户中心只读运维聚合（与后端 customer_ops DTO 对齐）。金额仅 USD。
 
-export interface UsersOpsSummary {
-  user_total: number;
-  balance_usd: string;
-  reserved_usd: string;
-  available_usd: string;
-  low_balance_total: number;
-  request_total: number;
-  succeeded: number;
-  success_rate: number;
-  consumption_usd: string;
-}
-
 export interface UserOpsRow {
   id: number;
   email: string;
@@ -78,11 +66,6 @@ interface PageParams extends RangeQuery {
   page_size: number;
   sort?: string;
   search?: string;
-}
-
-export async function getUsersOpsSummary(params: RangeQuery): Promise<UsersOpsSummary> {
-  const res = await api.get<{ data: UsersOpsSummary }>("/admin/v1/users/ops/summary", { params });
-  return res.data.data;
 }
 
 export async function getUsersOpsTable(params: PageParams): Promise<Page<UserOpsRow>> {

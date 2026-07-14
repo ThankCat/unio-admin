@@ -9,7 +9,8 @@ export type DataTableColumnMeta = {
   align?: TableColumnAlign;
   /** 固定宽度（如 Badge 列），不参与剩余空间比例分配 */
   fixedWidth?: boolean;
-  /** 按行估算列内容宽度（用于动态 minWidth） */
+  /** 按行估算列内容宽度（用于动态 minWidth）；各列按自身行类型定义，故此处用 any 逃生舱。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   autoSizeValue?: (row: any) => unknown;
 };
 
@@ -19,14 +20,14 @@ const DEFAULT_MAX = 480;
 const DEFAULT_AUTOSIZE_PADDING = 44;
 const DEFAULT_AUTOSIZE_SAMPLE_SIZE = 80;
 /** 与 DataTable 表头/单元格 pl-6 拖拽留白一致。 */
-export const TABLE_HEAD_GUTTER_PX = 24;
+const TABLE_HEAD_GUTTER_PX = 24;
 const CONTENT_MIN_FLOOR = 48;
 const ACTION_COLUMN_MIN = 88;
 /** 凭证列复制按钮占位（与 icon-sm 按钮 + gap 对齐）。 */
 const CREDENTIAL_COPY_BTN_PX = 32;
 
 /** 运维 / 详情表常用列 id 的默认宽度（px）。 */
-export const STANDARD_COLUMN_SIZES: Record<string, { size: number; minSize: number }> = {
+const STANDARD_COLUMN_SIZES: Record<string, { size: number; minSize: number }> = {
   name: { size: 220, minSize: 140 },
   model: { size: 200, minSize: 140 },
   model_ref: { size: 200, minSize: 140 },
@@ -92,7 +93,7 @@ export const STANDARD_COLUMN_SIZES: Record<string, { size: number; minSize: numb
 };
 
 /** 表头列最小宽度（px，列定义 fallback）。 */
-export function headerMinWidth<TData>(
+function headerMinWidth<TData>(
   header: { column: { columnDef: ColumnDef<TData, unknown> } },
 ): number {
   return header.column.columnDef.minSize ?? DEFAULT_MIN;
@@ -140,7 +141,7 @@ export function sumFlexHeadersMinWidth<TData>(
 }
 
 /** 按 minSize 比例分配列宽：宽屏一起变宽，窄屏不低于 minSize。 */
-export function proportionalColumnStyle(
+function proportionalColumnStyle(
   minWidth: number,
   totalMin: number,
 ): { width: string; minWidth: number } {
@@ -152,7 +153,7 @@ export function proportionalColumnStyle(
 }
 
 /** 弹性列等分：占比相同；minWidth 为当前页内容估算下限。 */
-export function equalColumnStyle(
+function equalColumnStyle(
   minWidth: number,
   flexColumnCount: number,
 ): { width: string; minWidth: number } {

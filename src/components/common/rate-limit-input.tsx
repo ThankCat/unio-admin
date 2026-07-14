@@ -11,9 +11,9 @@ import { Input } from "@/components/ui/input";
 // 单位 K=千 / M=百万 / B=十亿，默认 K；入库存真实整数(数字 × 单位)。
 // 语义沿用原限流：空=继承全局默认；0=不限(0 × 任意单位仍是 0)。
 
-export type RateUnit = "K" | "M" | "B";
+type RateUnit = "K" | "M" | "B";
 
-export const RATE_UNIT_MULTIPLIER: Record<RateUnit, number> = {
+const RATE_UNIT_MULTIPLIER: Record<RateUnit, number> = {
   K: 1_000,
   M: 1_000_000,
   B: 1_000_000_000,
@@ -24,7 +24,7 @@ export interface RateLimitFieldValue {
   unit: RateUnit;
 }
 
-export const EMPTY_RATE_LIMIT: RateLimitFieldValue = { num: "", unit: "K" };
+const EMPTY_RATE_LIMIT: RateLimitFieldValue = { num: "", unit: "K" };
 
 // decomposeRateLimit 把存储的真实整数拆回 {数字, 单位} 用于回填编辑表单。
 // null/undefined → 空(继承默认)；0 → "0"(不限)；能被 B/M 整除则用 B/M，否则落到 K(允许小数，如 590→0.59K)。

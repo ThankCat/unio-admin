@@ -1,5 +1,3 @@
-// 列定义模块：内联了状态/能力两个小渲染组件（非 HMR 边界），故关闭 fast-refresh 单一导出约束。
-/* eslint-disable react-refresh/only-export-components */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";

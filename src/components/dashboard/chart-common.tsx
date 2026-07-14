@@ -31,7 +31,7 @@ export function fmtBucket(iso: string, interval: TimeseriesInterval): string {
 // 趋势图上方「人话摘要」的着色意图。
 export type StatIntent = "default" | "success" | "warning" | "danger";
 
-export function statIntentClass(intent: StatIntent | undefined): string {
+function statIntentClass(intent: StatIntent | undefined): string {
   switch (intent) {
     case "success":
       return "text-emerald-600 dark:text-emerald-400";

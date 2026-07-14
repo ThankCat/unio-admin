@@ -59,7 +59,7 @@ function compareCapabilityKeys(
   columnId: string,
   desc: boolean,
 ): number {
-  let cmp = 0;
+  let cmp: number;
   switch (columnId) {
     case "key":
       cmp = a.key.localeCompare(b.key);

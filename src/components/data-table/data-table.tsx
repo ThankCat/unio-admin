@@ -162,7 +162,7 @@ export function DataTable<TData>({
   };
 
   const headerGroup = table.getHeaderGroups()[0];
-  const headers = headerGroup?.headers ?? [];
+  const headers = useMemo(() => headerGroup?.headers ?? [], [headerGroup]);
   const sortableIds = headers.map((h) => h.column.id);
   const totalMinWidth = useMemo(
     () => sumHeadersMinWidth(headers, contentMinWidths),

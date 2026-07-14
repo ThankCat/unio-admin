@@ -14,7 +14,7 @@ export interface ModelSellabilityInput {
 }
 
 /** 不可售时的运维原因（与后端 sellable = enabled ∧ bindings_available>0 对齐）。 */
-export function modelSellabilityReasons(row: ModelSellabilityInput): string[] {
+function modelSellabilityReasons(row: ModelSellabilityInput): string[] {
   if (row.status !== "enabled") {
     return ["模型已停用，不参与路由"];
   }

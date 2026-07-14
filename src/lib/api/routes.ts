@@ -3,7 +3,7 @@ import { api } from "@/lib/api/client";
 // 与后端 routeDTO 对齐（阶段 15：线路 = 渠道商品）。
 // mode: cheapest | stable | fixed | random；pool_kind: all（动态全量）| explicit（手挑渠道）。
 // channels 仅 explicit 线路有值。
-export interface RouteChannel {
+interface RouteChannel {
   channel_id: number;
   channel_name: string;
   provider_id: number;
@@ -97,16 +97,4 @@ export async function archiveRoute(
 // 恢复线路：archived → disabled（归档前已无 key，恢复后需手动绑定/迁入）。
 export async function restoreRoute(id: number): Promise<void> {
   await api.post(`/admin/v1/routes/${id}/restore`);
-}
-
-// 整条线路 api_key 一键迁移到目标线路（§4B 入口①）。返回迁移的 key 数。
-export async function migrateRouteKeys(
-  id: number,
-  targetRouteId: number,
-): Promise<number> {
-  const res = await api.post<{ data: { migrated: number } }>(
-    `/admin/v1/routes/${id}/migrate-keys`,
-    { target_route_id: targetRouteId },
-  );
-  return res.data.data.migrated;
 }

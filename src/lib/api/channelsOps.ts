@@ -1,35 +1,9 @@
 import { api } from "@/lib/api/client";
 import { buildListQuery } from "@/lib/api/list-params";
 import type { ListMeta, Page } from "@/lib/api/types";
-import type { HealthBucket, LatencyStats, RangeQuery, SuccessBucket } from "@/lib/api/dashboard";
+import type { HealthBucket, LatencyStats, RangeQuery } from "@/lib/api/dashboard";
 
 // §3.3 渠道作战台只读运维聚合（与后端 channels_ops DTO 对齐）。
-
-export interface ChannelHealthCounts {
-  healthy: number;
-  degraded: number;
-  unhealthy: number;
-  no_data: number;
-}
-
-export interface ChannelsOpsSummary {
-  total: number;
-  enabled: number;
-  disabled: number;
-  health: ChannelHealthCounts;
-  attempt_total: number;
-  attempt_succeeded: number;
-  success_rate: number;
-  timeout_total: number;
-  latency: LatencyStats;
-  tps: number;
-  recent_error_code: string;
-  recent_error_channel: string;
-  recent_error_at: string | null;
-  price_total: number;
-  price_with_price: number;
-  price_with_cost: number;
-}
 
 export interface ChannelOpsRow {
   id: number;
@@ -136,16 +110,6 @@ export interface ChannelsOpsTableParams extends RangeQuery {
   search?: string;
 }
 
-export async function getChannelsOpsSummary(
-  params: RangeQuery,
-): Promise<ChannelsOpsSummary> {
-  const res = await api.get<{ data: ChannelsOpsSummary }>(
-    "/admin/v1/channels/ops/summary",
-    { params },
-  );
-  return res.data.data;
-}
-
 export async function getChannelsOpsTable(
   params: ChannelsOpsTableParams,
 ): Promise<Page<ChannelOpsRow>> {
@@ -162,17 +126,6 @@ export async function getChannelOpsDetail(
 ): Promise<ChannelOpsDetail> {
   const res = await api.get<{ data: ChannelOpsDetail }>(
     `/admin/v1/channels/${id}/ops/detail`,
-    { params },
-  );
-  return res.data.data;
-}
-
-export async function getChannelOpsSuccessBuckets(
-  id: number,
-  params: RangeQuery,
-): Promise<SuccessBucket[]> {
-  const res = await api.get<{ data: SuccessBucket[] }>(
-    `/admin/v1/channels/${id}/ops/success-buckets`,
     { params },
   );
   return res.data.data;

@@ -66,7 +66,7 @@ export const BREAKDOWN_COLUMNS: Record<
   ],
 };
 
-export const BREAKDOWN_COLUMN_LABEL: Record<
+const BREAKDOWN_COLUMN_LABEL: Record<
   Exclude<BreakdownColumnId, "name">,
   string
 > = {
@@ -123,7 +123,7 @@ export const STATUS_LABEL: Record<string, string> = {
   archived: "已归档",
 };
 
-export const ERROR_CODE_LABEL: Record<string, string> = {
+const ERROR_CODE_LABEL: Record<string, string> = {
   unknown: "未知错误",
   no_available_channel: "无可用渠道",
   routing_no_available_channel: "无可用渠道",

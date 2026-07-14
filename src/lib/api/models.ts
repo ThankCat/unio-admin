@@ -2,7 +2,7 @@ import { api } from "@/lib/api/client";
 import type { ListMeta, ListParams, Page } from "@/lib/api/types";
 
 // 采纳目录追更状态（阶段 14）：未采纳模型为 null。
-export interface ModelCatalogState {
+interface ModelCatalogState {
   canonical_id: string;
   update_available: boolean;
   removed_upstream: boolean;
@@ -67,7 +67,7 @@ export async function listAllModels(
 }
 
 // 可选展示元数据（手建可填、采纳带入、刷新覆盖）；价格为十进制字符串，发布日期 YYYY-MM-DD。
-export interface ModelMetadataInput {
+interface ModelMetadataInput {
   max_output_tokens?: number | null;
   context_window_tokens?: number | null;
   input_price_usd_per_million_tokens?: string | null;

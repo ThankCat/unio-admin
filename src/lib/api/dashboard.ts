@@ -120,7 +120,7 @@ export interface CacheStats {
   cache_write_30m_tokens: number;
 }
 
-export interface RadarActionItem {
+interface RadarActionItem {
   kind: string;
   severity: "warning" | "danger";
   title: string;
@@ -210,7 +210,7 @@ export interface TopErrorsResult {
   errors: ErrorGroup[];
 }
 
-export interface PerformancePoint {
+interface PerformancePoint {
   bucket: string;
   latency_p95: number;
   ttft_p95: number;

@@ -1,16 +1,5 @@
 /** Admin 列表 REST 查询参数（与后端 snake_case wire 对齐）。 */
 
-export interface ListMeta {
-  page: number;
-  page_size: number;
-  total: number;
-}
-
-export interface Page<T> {
-  items: T[];
-  total: number;
-}
-
 /** 服务端列表请求基类。sort 前缀 `-` 表示降序。 */
 export interface ServerListParams {
   page: number;
@@ -19,7 +8,7 @@ export interface ServerListParams {
 }
 
 /** 把 sort 状态编码为 ?sort=field 或 ?sort=-field */
-export function encodeSort(field: string, desc: boolean): string {
+function encodeSort(field: string, desc: boolean): string {
   return desc ? `-${field}` : field;
 }
 

@@ -35,7 +35,7 @@ export interface Channel {
 }
 
 // 限流入参（P2-8 + DEC-029 并发）：null=继承全局默认，0=不限，>0=具体上限。
-export interface RateLimitsInput {
+interface RateLimitsInput {
   rpm: number | null;
   tpm: number | null;
   rpd: number | null;

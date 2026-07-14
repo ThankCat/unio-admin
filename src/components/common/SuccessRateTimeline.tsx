@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 import type { SuccessBucket } from "@/lib/api/dashboard";
 import { formatInt, formatPercent } from "@/lib/format";
 
-export const SUCCESS_BUCKETS_VISIBLE = 16;
-export const SUCCESS_BUCKET_INTERVAL_MS = 10 * 60 * 1000;
+const SUCCESS_BUCKETS_VISIBLE = 16;
+const SUCCESS_BUCKET_INTERVAL_MS = 10 * 60 * 1000;
 
 function successRateBarClass(rate: number | null | undefined): string {
   if (rate == null || !Number.isFinite(rate)) return "bg-muted-foreground/30";
@@ -14,7 +14,7 @@ function successRateBarClass(rate: number | null | undefined): string {
   return "bg-red-500";
 }
 
-export function successRateTextClass(rate: number | null | undefined): string {
+function successRateTextClass(rate: number | null | undefined): string {
   if (rate == null || !Number.isFinite(rate)) return "text-muted-foreground";
   const pct = rate * 100;
   if (pct >= 100) return "text-emerald-600 dark:text-emerald-400";
@@ -57,7 +57,7 @@ function bucketKey(value: string): string | null {
   return String(Math.floor(time / SUCCESS_BUCKET_INTERVAL_MS));
 }
 
-export function displaySuccessBuckets(buckets: SuccessBucket[]): DisplaySuccessBucket[] {
+function displaySuccessBuckets(buckets: SuccessBucket[]): DisplaySuccessBucket[] {
   const valid = buckets
     .filter((bucket) => bucketKey(bucket.bucket) != null)
     .slice(-SUCCESS_BUCKETS_VISIBLE);
@@ -86,7 +86,7 @@ export function displaySuccessBuckets(buckets: SuccessBucket[]): DisplaySuccessB
 }
 
 /** 按实际时序点逐柱渲染（用于小时/天桶的性能 API，不做 10 分钟网格对齐）。 */
-export function displaySeriesBuckets(
+function displaySeriesBuckets(
   buckets: SuccessBucket[],
   max = SUCCESS_BUCKETS_VISIBLE,
 ): DisplaySuccessBucket[] {
@@ -106,7 +106,7 @@ export function displaySeriesBuckets(
  * 按时序右对齐填入，其余为左侧空槽。兼顾「数量固定 + 每槽浅灰底 + 有数据处着色」，
  * 且不因 10 分钟时间网格对齐把稀疏数据打散成一片空槽。无任何数据时返回空（只显示百分比）。
  */
-export function displayFixedBuckets(
+function displayFixedBuckets(
   buckets: SuccessBucket[],
   slots = SUCCESS_BUCKETS_VISIBLE,
 ): DisplaySuccessBucket[] {
@@ -124,20 +124,6 @@ export function displayFixedBuckets(
     out.push({ key: `${value.bucket}-${index}`, bucket: value.bucket, value });
   });
   return out;
-}
-
-/** 将性能时序点转为成功率桶（用于渠道详情等无 breakdown API 的场景）。 */
-export function perfPointsToSuccessBuckets(
-  points: Array<{ bucket: string; attempt_total: number; attempt_succeeded: number }>,
-): SuccessBucket[] {
-  return points
-    .filter((p) => p.attempt_total > 0)
-    .map((p) => ({
-      bucket: p.bucket,
-      terminal: p.attempt_total,
-      succeeded: p.attempt_succeeded,
-      success_rate: p.attempt_succeeded / p.attempt_total,
-    }));
 }
 
 export function SuccessRateTimeline({

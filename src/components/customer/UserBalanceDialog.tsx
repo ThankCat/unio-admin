@@ -140,7 +140,7 @@ export function UserBalanceDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
-      <DialogContent>
+      <DialogContent closeOnOutsideClick={false}>
         <DialogHeader>
           <DialogTitle>余额管理</DialogTitle>
           <DialogDescription>

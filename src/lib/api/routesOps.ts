@@ -5,19 +5,6 @@ import type { RangeQuery } from "@/lib/api/dashboard";
 
 // §3.5 线路路由作战台只读运维聚合（与后端 routes_ops DTO 对齐）。
 
-export interface RoutesOpsSummary {
-  total: number;
-  enabled: number;
-  disabled: number;
-  request_total: number;
-  succeeded: number;
-  success_rate: number;
-  fallback_total: number;
-  fallback_rate: number;
-  no_channel: number;
-  latency_p95: number;
-}
-
 export interface RouteOpsRow {
   id: number;
   name: string;
@@ -62,7 +49,7 @@ export interface RouteOpsChannelPoolItem {
   provider_name: string;
 }
 
-export interface RouteOpsBoundUser {
+interface RouteOpsBoundUser {
   id: number;
   email: string;
   display_name: string;
@@ -109,11 +96,6 @@ export interface RoutesOpsTableParams extends RangeQuery {
   sort?: string;
   status?: string;
   search?: string;
-}
-
-export async function getRoutesOpsSummary(params: RangeQuery): Promise<RoutesOpsSummary> {
-  const res = await api.get<{ data: RoutesOpsSummary }>("/admin/v1/routes/ops/summary", { params });
-  return res.data.data;
 }
 
 export async function getRoutesOpsTable(params: RoutesOpsTableParams): Promise<Page<RouteOpsRow>> {

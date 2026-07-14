@@ -14,13 +14,13 @@ export const ENTITY_STATUS_OPTIONS = [
   { value: "archived", label: "已归档" },
 ] as const;
 
-export interface StatusOption {
+interface StatusOption {
   value: string;
   label: string;
 }
 
 /** 传给 fetch 的服务端列表参数；range/userId 等固定参数由调用方在 fetch 闭包里合并。 */
-export interface ServerTableFetchParams {
+interface ServerTableFetchParams {
   page: number;
   page_size: number;
   sort?: string;

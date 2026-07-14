@@ -10,7 +10,7 @@ export interface User {
 }
 
 // 用户某币种余额；金额为十进制字符串（不经 float）。
-export interface Balance {
+interface Balance {
   currency: string;
   balance: string;
   reserved_balance: string;

@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { ColumnDef } from "@tanstack/react-table";
 import type { UserOpsRow } from "@/lib/api/customerOps";
 import { UserRowActions } from "@/components/customer/UserRowActions";

@@ -110,47 +110,15 @@ export async function getRecoveryJob(
   return res.data.data;
 }
 
-// 系统级 channel 健康：从区间内 request_attempts 成功率派生（非熔断器实时态）。
-export type ChannelHealthBucket =
-  | "healthy"
-  | "degraded"
-  | "unhealthy"
-  | "no_data";
-
-export interface ChannelHealth {
-  channel_id: number;
-  name: string;
-  status: string;
-  provider_id: number;
-  attempt_total: number;
-  attempt_succeeded: number;
-  attempt_failed: number;
-  attempt_canceled: number;
-  success_rate: number;
-  last_attempt_at: string | null;
-  bucket: ChannelHealthBucket;
-}
-
-export async function listChannelHealth(params?: {
-  from?: string;
-  to?: string;
-}): Promise<ChannelHealth[]> {
-  const res = await api.get<{ data: ChannelHealth[] }>(
-    "/admin/v1/system/channel-health",
-    { params: { from: params?.from || undefined, to: params?.to || undefined } },
-  );
-  return res.data.data;
-}
-
 // 网关配置只读面板：进程级 env 生效阈值（脱敏，绝不含凭据/密钥/连接串）。
 // 与后端 systemConfigDTO 对齐：分组 + 每项 {label, value, env}。
-export interface SystemConfigEntry {
+interface SystemConfigEntry {
   label: string;
   value: string;
   env: string;
 }
 
-export interface SystemConfigGroup {
+interface SystemConfigGroup {
   title: string;
   entries: SystemConfigEntry[];
 }

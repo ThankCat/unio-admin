@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { ColumnDef } from "@tanstack/react-table";
 import { PencilIcon, Trash2Icon } from "lucide-react";
 import type { CapabilityKeyDef } from "@/lib/api/capability";

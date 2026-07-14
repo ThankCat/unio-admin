@@ -170,7 +170,7 @@ export async function triggerSync(dryRun: boolean): Promise<SyncResult> {
 
 // ---- adapter 画像 ----
 
-export interface ProfileDeclaration {
+interface ProfileDeclaration {
   capability_key: string;
   support_level: SupportLevel;
   limits: unknown | null;
