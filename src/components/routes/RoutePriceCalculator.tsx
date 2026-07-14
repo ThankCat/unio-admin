@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, CalculatorIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { listChannelPrices, pickCurrentChannelPrice } from "@/lib/api/channelPrices";
-import { getModelsOpsTable } from "@/lib/api/modelsOps";
+import { listChannelPrices } from "@/lib/api/channelPrices";
+import { listChannelCostMultipliers } from "@/lib/api/channelCostMultipliers";
+import {
+  listChannelRechargeFactors,
+  pickCurrentChannelRechargeFactor,
+} from "@/lib/api/channelRechargeFactors";
+import { getModelsOpsTable, type ModelOpsRow } from "@/lib/api/modelsOps";
+import {
+  costBaseFromOpsBase,
+  resolveChannelIOCost,
+} from "@/lib/billing/resolveChannelCost";
 import { cn } from "@/lib/utils";
 import { roundPrice3, trimDecimal } from "@/lib/format";
 import {
@@ -77,7 +86,7 @@ function deltaClass(tone: ReturnType<typeof marginTone>): string {
   }
 }
 
-export function RouteRatioBadge({ ratioRaw }: { ratioRaw: string }) {
+function RouteRatioBadge({ ratioRaw }: { ratioRaw: string }) {
   const ratio = parseRatio(ratioRaw);
   if (ratio == null) return null;
   if (ratio === 1) return <Badge variant="secondary">原价</Badge>;
@@ -111,18 +120,41 @@ type ChannelCost = {
   output: number;
 };
 
+type ChannelCostBundle = {
+  prices: Awaited<ReturnType<typeof listChannelPrices>>;
+  multipliers: Awaited<ReturnType<typeof listChannelCostMultipliers>>;
+  rechargeFactor: string | null;
+};
+
 function listChannelCosts(
-  modelId: number,
+  model: ModelOpsRow,
   channelIds: number[],
   channelNames: Record<number, string> | undefined,
-  priceLists: Awaited<ReturnType<typeof listChannelPrices>>[],
+  bundles: ChannelCostBundle[],
 ): ChannelCost[] {
+  const costBase = costBaseFromOpsBase({
+    uncached_input_price: model.base_uncached_input_price,
+    output_price: model.base_output_price,
+    cache_read_input_price: model.base_cache_read_input_price,
+    reasoning_output_price: model.base_reasoning_output_price,
+    cache_write_5m_input_price: model.base_cache_write_5m_input_price,
+    cache_write_1h_input_price: model.base_cache_write_1h_input_price,
+    cache_write_30m_input_price: model.base_cache_write_30m_input_price,
+  });
   const rows: ChannelCost[] = [];
   channelIds.forEach((channelId, idx) => {
-    const cost = pickCurrentChannelPrice(priceLists[idx] ?? [], modelId);
+    const bundle = bundles[idx];
+    if (!bundle) return;
+    const cost = resolveChannelIOCost({
+      modelId: model.id,
+      absolutePrices: bundle.prices,
+      multipliers: bundle.multipliers,
+      rechargeFactor: bundle.rechargeFactor,
+      costBase,
+    });
     if (!cost) return;
-    const input = Number(cost.uncached_input_cost);
-    const output = Number(cost.output_cost);
+    const input = Number(cost.input);
+    const output = Number(cost.output);
     if (!Number.isFinite(input) || !Number.isFinite(output)) return;
     rows.push({
       channelId,
@@ -230,10 +262,21 @@ function RoutePriceCalculatorPanel({
       getModelsOpsTable({ range: "all", page: 1, page_size: 200, sort: "name" }),
   });
 
-  const channelPricesQueries = useQueries({
+  const channelCostQueries = useQueries({
     queries: channelIds.map((channelId) => ({
-      queryKey: ["channel-prices", channelId, "route-preview"],
-      queryFn: () => listChannelPrices(channelId),
+      queryKey: ["channel-cost-bundle", channelId, "route-preview"],
+      queryFn: async (): Promise<ChannelCostBundle> => {
+        const [prices, multipliers, factors] = await Promise.all([
+          listChannelPrices(channelId),
+          listChannelCostMultipliers(channelId),
+          listChannelRechargeFactors(channelId),
+        ]);
+        return {
+          prices,
+          multipliers,
+          rechargeFactor: pickCurrentChannelRechargeFactor(factors)?.factor ?? null,
+        };
+      },
       enabled: poolKind === "explicit" && channelIds.length > 0,
     })),
   });
@@ -243,7 +286,18 @@ function RoutePriceCalculatorPanel({
     return [...items].sort((a, b) => a.model_id.localeCompare(b.model_id));
   }, [modelsQ.data]);
 
-  const priceLists = channelPricesQueries.map((q) => q.data ?? []);
+  const bundles = useMemo(
+    () =>
+      channelCostQueries.map(
+        (q) =>
+          q.data ?? {
+            prices: [],
+            multipliers: [],
+            rechargeFactor: null,
+          },
+      ),
+    [channelCostQueries],
+  );
 
   const previewModel = useMemo(
     () => models.find((m) => String(m.id) === previewModelId) ?? models[0] ?? null,
@@ -261,8 +315,8 @@ function RoutePriceCalculatorPanel({
 
   const channelCosts = useMemo(() => {
     if (!previewModel || poolKind !== "explicit" || channelIds.length === 0) return [];
-    return listChannelCosts(previewModel.id, channelIds, channelNames, priceLists);
-  }, [previewModel, poolKind, channelIds, channelNames, priceLists]);
+    return listChannelCosts(previewModel, channelIds, channelNames, bundles);
+  }, [previewModel, poolKind, channelIds, channelNames, bundles]);
 
   const baseIn =
     previewModel?.base_uncached_input_price != null
@@ -275,15 +329,15 @@ function RoutePriceCalculatorPanel({
 
   const allRows = useMemo(() => {
     return models.map((m) => {
-      const costs = listChannelCosts(m.id, channelIds, channelNames, priceLists);
+      const costs = listChannelCosts(m, channelIds, channelNames, bundles);
       const sIn = ratio != null ? applyRatio(m.base_uncached_input_price, ratio) : null;
       const sOut = ratio != null ? applyRatio(m.base_output_price, ratio) : null;
       return { model: m, costs, sellIn: sIn, sellOut: sOut };
     });
-  }, [models, channelIds, channelNames, priceLists, ratio]);
+  }, [models, channelIds, channelNames, bundles, ratio]);
 
   const channelsLoading =
-    poolKind === "explicit" && channelIds.length > 0 && channelPricesQueries.some((q) => q.isPending);
+    poolKind === "explicit" && channelIds.length > 0 && channelCostQueries.some((q) => q.isPending);
 
   return (
     <div className="flex flex-col gap-4">
@@ -329,7 +383,7 @@ function RoutePriceCalculatorPanel({
             </p>
           ) : channelCosts.length === 0 ? (
             <p className="text-muted-foreground text-xs">
-              所选渠道尚未配置该模型的成本价。
+              所选渠道尚未配置该模型的成本（需基准价 + 成本倍率，或绝对成本覆盖）。
             </p>
           ) : (
             <div className="flex flex-col gap-2">

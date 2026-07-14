@@ -1,7 +1,16 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { listChannelPrices, pickCurrentChannelPrice } from "@/lib/api/channelPrices";
+import { listChannelPrices } from "@/lib/api/channelPrices";
+import { listChannelCostMultipliers } from "@/lib/api/channelCostMultipliers";
+import {
+  listChannelRechargeFactors,
+  pickCurrentChannelRechargeFactor,
+} from "@/lib/api/channelRechargeFactors";
 import { getModelsOpsTable } from "@/lib/api/modelsOps";
+import {
+  costBaseFromOpsBase,
+  resolveChannelIOCost,
+} from "@/lib/billing/resolveChannelCost";
 import { cn } from "@/lib/utils";
 import {
   applyRouteRatio,
@@ -40,6 +49,12 @@ type MarginRow = {
   outputDelta: number | null;
 };
 
+type ChannelCostBundle = {
+  prices: Awaited<ReturnType<typeof listChannelPrices>>;
+  multipliers: Awaited<ReturnType<typeof listChannelCostMultipliers>>;
+  rechargeFactor: string | null;
+};
+
 function deltaClass(tone: ReturnType<typeof marginTone>): string {
   switch (tone) {
     case "up":
@@ -57,31 +72,44 @@ function buildMarginRows(
   channels: ChannelOption[],
   channelIds: number[],
   models: Awaited<ReturnType<typeof getModelsOpsTable>>["items"],
-  priceLists: Awaited<ReturnType<typeof listChannelPrices>>[],
+  bundles: ChannelCostBundle[],
   ratio: number | null,
 ): MarginRow[] {
   const channelMap = Object.fromEntries(channels.map((c) => [c.id, c.name]));
   const rows: MarginRow[] = [];
 
   channelIds.forEach((channelId, idx) => {
-    const prices = priceLists[idx] ?? [];
+    const bundle = bundles[idx];
+    if (!bundle) return;
     const channelName = channelMap[channelId] ?? `渠道 #${channelId}`;
 
     for (const model of models) {
-      const cost = pickCurrentChannelPrice(prices, model.id);
+      const cost = resolveChannelIOCost({
+        modelId: model.id,
+        absolutePrices: bundle.prices,
+        multipliers: bundle.multipliers,
+        rechargeFactor: bundle.rechargeFactor,
+        costBase: costBaseFromOpsBase({
+          uncached_input_price: model.base_uncached_input_price,
+          output_price: model.base_output_price,
+          cache_read_input_price: model.base_cache_read_input_price,
+          reasoning_output_price: model.base_reasoning_output_price,
+          cache_write_5m_input_price: model.base_cache_write_5m_input_price,
+          cache_write_1h_input_price: model.base_cache_write_1h_input_price,
+          cache_write_30m_input_price: model.base_cache_write_30m_input_price,
+        }),
+      });
       if (!cost) continue;
 
-      const inputCost = Number(cost.uncached_input_cost);
-      const outputCost = Number(cost.output_cost);
+      const inputCost = Number(cost.input);
+      const outputCost = Number(cost.output);
       if (!Number.isFinite(inputCost) || !Number.isFinite(outputCost)) continue;
 
       const inputPrice =
         ratio != null ? applyRouteRatio(model.base_uncached_input_price, ratio) : null;
       const outputPrice = ratio != null ? applyRouteRatio(model.base_output_price, ratio) : null;
-      const inputDelta =
-        inputPrice != null ? inputPrice - inputCost : null;
-      const outputDelta =
-        outputPrice != null ? outputPrice - outputCost : null;
+      const inputDelta = inputPrice != null ? inputPrice - inputCost : null;
+      const outputDelta = outputPrice != null ? outputPrice - outputCost : null;
 
       rows.push({
         key: `${channelId}-${model.id}`,
@@ -132,25 +160,50 @@ export function RouteChannelMarginTable({
     enabled: channelIds.length > 0,
   });
 
-  const channelPricesQueries = useQueries({
+  const channelCostQueries = useQueries({
     queries: channelIds.map((channelId) => ({
-      queryKey: ["channel-prices", channelId, "route-margin-table"],
-      queryFn: () => listChannelPrices(channelId),
+      queryKey: ["channel-cost-bundle", channelId, "route-margin-table"],
+      queryFn: async (): Promise<ChannelCostBundle> => {
+        const [prices, multipliers, factors] = await Promise.all([
+          listChannelPrices(channelId),
+          listChannelCostMultipliers(channelId),
+          listChannelRechargeFactors(channelId),
+        ]);
+        return {
+          prices,
+          multipliers,
+          rechargeFactor: pickCurrentChannelRechargeFactor(factors)?.factor ?? null,
+        };
+      },
       enabled: channelIds.length > 0,
     })),
   });
 
-  const priceLists = channelPricesQueries.map((q) => q.data ?? []);
-  const models = modelsQ.data?.items ?? [];
+  const bundles = channelCostQueries.map((q) => q.data);
+  const models = useMemo(() => modelsQ.data?.items ?? [], [modelsQ.data]);
 
   const rows = useMemo(
-    () => buildMarginRows(channels, channelIds, models, priceLists, ratio),
-    [channels, channelIds, models, priceLists, ratio],
+    () =>
+      buildMarginRows(
+        channels,
+        channelIds,
+        models,
+        bundles.map(
+          (b) =>
+            b ?? {
+              prices: [],
+              multipliers: [],
+              rechargeFactor: null,
+            },
+        ),
+        ratio,
+      ),
+    [channels, channelIds, models, bundles, ratio],
   );
 
   const loading =
     channelIds.length > 0 &&
-    (modelsQ.isPending || channelPricesQueries.some((q) => q.isPending));
+    (modelsQ.isPending || channelCostQueries.some((q) => q.isPending));
 
   return (
     <div className="overflow-hidden rounded-md border">
@@ -192,7 +245,7 @@ export function RouteChannelMarginTable({
           </p>
         ) : rows.length === 0 ? (
           <p className="text-muted-foreground p-4 text-center text-xs">
-            所选渠道暂无已配置成本的模型
+            所选渠道暂无已配置成本的模型（需基准价 + 成本倍率，或绝对成本覆盖）
           </p>
         ) : (
           <Table containerClassName="overflow-visible">

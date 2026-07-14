@@ -102,7 +102,7 @@ function TestPanel({ channel }: { channel: Channel }) {
       <DialogHeader>
         <DialogTitle>检测渠道</DialogTitle>
         <DialogDescription>
-          向「{channel.name}」的真实上游发一个最小请求，验证连通性、凭据与模型是否可用。检测会产生一次计费极小的真实请求，不计入客户账单，也不会改变渠道启停状态。
+          向「{channel.name}」的真实上游发一个最小请求，验证连通性、凭据与模型是否可用。检测会产生一次计费极小的真实请求，不计入客户账单，也不会改变渠道启停状态。探测超时取自系统设置「渠道检测超时」，与渠道行上的用户请求超时无关。
         </DialogDescription>
       </DialogHeader>
 

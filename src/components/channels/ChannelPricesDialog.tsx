@@ -59,14 +59,30 @@ import { ChannelCostCalculator } from "@/components/channels/ChannelCostCalculat
 const MONEY_PATTERN = /^\d+(\.\d+)?$/;
 
 // 成本分项：六个分项，前两个（未缓存输入/输出）成本必填（DEC-026：渠道只录成本）。
+// 缓存写入按 TTL 分档（DEC-030）：5m/1h 为 Anthropic，30m 为 OpenAI GPT-5.6+。
 const COST_FIELDS = [
   { key: "uncached_input", label: "未缓存输入", required: true },
   { key: "output", label: "输出", required: true },
   { key: "cache_read_input", label: "缓存读取输入", required: false },
   { key: "reasoning_output", label: "reasoning 输出", required: false },
-  { key: "cache_write_5m_input", label: "5 分钟缓存写入", required: false },
-  { key: "cache_write_1h_input", label: "1 小时缓存写入", required: false },
-  { key: "cache_write_30m_input", label: "30 分钟缓存写入", required: false },
+  {
+    key: "cache_write_5m_input",
+    label: "5 分钟缓存写入",
+    required: false,
+    vendor: "Anthropic",
+  },
+  {
+    key: "cache_write_1h_input",
+    label: "1 小时缓存写入",
+    required: false,
+    vendor: "Anthropic",
+  },
+  {
+    key: "cache_write_30m_input",
+    label: "30 分钟缓存写入",
+    required: false,
+    vendor: "OpenAI",
+  },
 ] as const;
 
 type CostFieldKey = (typeof COST_FIELDS)[number]["key"];
@@ -135,10 +151,10 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>新建渠道-模型成本价</DialogTitle>
+          <DialogTitle>新建成本覆盖（绝对价）</DialogTitle>
           <DialogDescription>
-            为「{channel.name}」的某个已绑定模型配置上游成本价（按每百万 token 计）。
-            客户售价 = 模型基准价 × 线路倍率（与渠道解耦），此处只录成本。
+            为「{channel.name}」的某个已绑定模型配置绝对成本价（按每百万 token 计）。此价会屏蔽该模型的「成本倍率」派生成本；
+            客户售价与此解耦（= 模型基准价 × 线路倍率）。仅在该模型定价特殊时使用。
           </DialogDescription>
         </DialogHeader>
         <ChannelPriceForm
@@ -159,17 +175,26 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>渠道-模型成本价</DialogTitle>
+        <DialogTitle>渠道-模型成本覆盖（绝对价）</DialogTitle>
         <DialogDescription>
-          「{channel.name}」各模型的上游成本价（含历史与停用）。价格不可删，改价请新建一条并关闭旧窗口。
+          「{channel.name}」各模型的上游绝对成本价（含历史与停用）。这里是「例外覆盖」：优先级高于「成本倍率」派生的成本；
+          只对个别定价特殊的模型使用。价格不可删，改价请新建一条并关闭旧窗口。
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-4">
+        <Alert>
+          <AlertTitle>优先用「成本倍率」</AlertTitle>
+          <AlertDescription>
+            大多数模型应走「成本倍率」：模型基准价 × 价格倍率 × 充值倍率自动派生成本，上游调价只改一个数即可全渠道生效。
+            这里的绝对覆盖会屏蔽该模型的倍率派生，仅在个别模型定价特殊时才需要。
+          </AlertDescription>
+        </Alert>
+
         <div>
           <Button size="sm" onClick={() => setMode("create")}>
             <PlusIcon data-icon="inline-start" />
-            新建渠道-模型成本价
+            新建成本覆盖
           </Button>
         </div>
 
@@ -186,7 +211,7 @@ function ChannelPriceManager({ channel }: { channel: Channel }) {
           </div>
         ) : prices.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            还没有配置渠道-模型成本价
+            还没有配置成本覆盖（默认走「成本倍率」派生成本）
           </p>
         ) : (
           <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto rounded-md border">
@@ -463,6 +488,7 @@ function ChannelPriceForm({
             key={f.key}
             label={f.label}
             required={f.required}
+            vendor={"vendor" in f ? f.vendor : undefined}
             cost={cost[f.key]}
             currentCost={readCurrentCost(currentPrice, f.key)}
             costError={errors[`cost_${f.key}`]}
@@ -700,6 +726,7 @@ function PriceOverwriteDialog({
 function CostRow({
   label,
   required,
+  vendor,
   cost,
   currentCost,
   costError,
@@ -707,6 +734,7 @@ function CostRow({
 }: {
   label: string;
   required: boolean;
+  vendor?: "Anthropic" | "OpenAI";
   cost: string;
   currentCost: string | null;
   costError?: string;
@@ -714,9 +742,16 @@ function CostRow({
 }) {
   return (
     <div className={cn("items-start border-t px-3 py-2", COST_TABLE_GRID)}>
-      <div className="pt-2 text-sm">
-        {label}
-        {required && <span className="text-destructive"> *</span>}
+      <div className="flex flex-wrap items-center gap-1.5 pt-2 text-sm">
+        <span>
+          {label}
+          {required && <span className="text-destructive"> *</span>}
+        </span>
+        {vendor && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+            {vendor}
+          </Badge>
+        )}
       </div>
       <div className="text-muted-foreground pt-2 tabular-nums text-sm">
         {currentCost ?? "—"}

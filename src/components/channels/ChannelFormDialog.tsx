@@ -519,7 +519,7 @@ function ChannelForm({
               <Field data-invalid={!!errors.timeout_ms}>
                 <HintLabel
                   htmlFor="timeout_ms"
-                  hint="本渠道调用上游的单次超时（毫秒）；留空用全局默认。"
+                  hint="用户请求经本渠道调用上游的单次超时（毫秒）；留空用系统「默认渠道超时」。与「渠道检测超时」无关。"
                 >
                   超时（毫秒）
                 </HintLabel>

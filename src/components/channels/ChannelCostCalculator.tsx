@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalculatorIcon } from "lucide-react";
-import { listModelPrices, type ModelPrice } from "@/lib/api/modelPrices";
+import {
+  listModelPrices,
+  pickCurrentModelPrice,
+  type ModelPrice,
+} from "@/lib/api/modelPrices";
 import { roundPrice3, trimDecimal } from "@/lib/format";
 import { HintLabel } from "@/components/common/field-hint";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,18 +49,21 @@ const CALC_FIELDS = [
     costKey: "cache_write_5m_input",
     label: "5 分钟缓存写入",
     priceField: "cache_write_5m_input_price",
+    vendor: "Anthropic",
   },
   {
     baseKey: "cache_write_1h_input",
     costKey: "cache_write_1h_input",
     label: "1 小时缓存写入",
     priceField: "cache_write_1h_input_price",
+    vendor: "Anthropic",
   },
   {
     baseKey: "cache_write_30m_input",
     costKey: "cache_write_30m_input",
     label: "30 分钟缓存写入",
     priceField: "cache_write_30m_input_price",
+    vendor: "OpenAI",
   },
 ] as const;
 
@@ -91,27 +99,13 @@ function parseRatio(raw: string): number | null {
 }
 
 /** 成本 = 充值倍率 × 模型倍率 × 模型基准价 */
-export function calcChannelCostAmount(
+function calcChannelCostAmount(
   topUpRatio: number,
   modelRatio: number,
   basePrice: number,
 ): number | null {
   if (!Number.isFinite(basePrice)) return null;
   return topUpRatio * modelRatio * basePrice;
-}
-
-function pickCurrentModelPrice(prices: ModelPrice[]): ModelPrice | null {
-  const now = Date.now();
-  const candidates = prices.filter((p) => {
-    if (p.status !== "enabled") return false;
-    if (new Date(p.effective_from).getTime() > now) return false;
-    if (p.effective_to && new Date(p.effective_to).getTime() <= now) return false;
-    return true;
-  });
-  if (candidates.length === 0) return null;
-  return candidates.sort(
-    (a, b) => new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime(),
-  )[0]!;
 }
 
 function basePricesFromModelPrice(price: ModelPrice | null): BasePrices {
@@ -313,7 +307,17 @@ export function ChannelCostCalculator({
                   key={f.baseKey}
                   className="grid grid-cols-[1fr_1fr_1fr] items-center gap-2 border-t px-3 py-2"
                 >
-                  <div className="text-sm">{f.label}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                    <span>{f.label}</span>
+                    {"vendor" in f && (
+                      <Badge
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px] font-normal"
+                      >
+                        {f.vendor}
+                      </Badge>
+                    )}
+                  </div>
                   <Input
                     value={basePrices[f.baseKey]}
                     onChange={(e) => {

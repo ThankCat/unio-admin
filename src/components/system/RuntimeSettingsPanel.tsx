@@ -55,7 +55,7 @@ const SOURCE_LABEL: Record<string, string> = {
 // 已知域 Tab（按此顺序展示）；未知 category 归入 other。
 const DOMAIN_TABS: { value: string; label: string; hint: string }[] = [
   { value: "gateway", label: "网关", hint: "gateway 进程热路径，保存后约 5 秒热生效（applier 周期推送）" },
-  { value: "admin_backend", label: "运营判定", hint: "admin 后端每请求现读，保存后 3 秒内生效" },
+  { value: "admin_backend", label: "运营判定", hint: "admin 后端与渠道检测 worker 每请求现读，保存后约 3 秒内生效" },
   { value: "admin_frontend", label: "前端展示", hint: "仅前端消费的展示档位，保存后本页面立即生效" },
   { value: "anthropic", label: "Provider 策略", hint: "gateway adapter 现读，保存后秒级生效" },
 ];
@@ -291,6 +291,7 @@ function SettingEditor({ item }: { item: SettingItem }) {
       return <CooldownEditor item={item} />;
     case "gateway.stream_idle_timeout_ms":
     case "gateway.default_channel_timeout_ms":
+    case "admin_backend.channel_test_probe_timeout_ms":
       return <DurationMsEditor item={item} />;
     case "gateway.credential_401_threshold":
       return <PositiveIntEditor item={item} />;
@@ -546,7 +547,7 @@ function CooldownEditor({ item }: { item: SettingItem }) {
   );
 }
 
-// ---- int 毫秒标量（流式 idle 超时 / 默认渠道超时）----
+// ---- int 毫秒标量（流式 idle / 默认渠道超时 / 渠道检测超时）----
 
 function DurationMsEditor({ item }: { item: SettingItem }) {
   const server = item.value as number;

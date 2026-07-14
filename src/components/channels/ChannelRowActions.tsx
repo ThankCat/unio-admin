@@ -16,6 +16,7 @@ import { ChannelFormDialog } from "@/components/channels/ChannelFormDialog";
 import { ChannelModelsDialog } from "@/components/channels/ChannelModelsDialog";
 import { ChannelTestDialog } from "@/components/channels/ChannelTestDialog";
 import { ChannelPricesDialog } from "@/components/channels/ChannelPricesDialog";
+import { ChannelCostMultiplierDialog } from "@/components/channels/ChannelCostMultiplierDialog";
 import { RotateCredentialDialog } from "@/components/channels/RotateCredentialDialog";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -31,6 +32,7 @@ export function ChannelRowActions({ channelId }: { channelId: number }) {
   const [editOpen, setEditOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [pricesOpen, setPricesOpen] = useState(false);
+  const [costMultOpen, setCostMultOpen] = useState(false);
   const [credOpen, setCredOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
@@ -39,6 +41,7 @@ export function ChannelRowActions({ channelId }: { channelId: number }) {
     editOpen ||
     modelsOpen ||
     pricesOpen ||
+    costMultOpen ||
     credOpen ||
     testOpen ||
     menuOpen ||
@@ -149,7 +152,8 @@ export function ChannelRowActions({ channelId }: { channelId: number }) {
                   {channel?.status === "enabled" ? "停用" : "启用"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDialog(setModelsOpen)}>管理模型</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openDialog(setPricesOpen)}>价格</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openDialog(setCostMultOpen)}>成本倍率</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openDialog(setPricesOpen)}>成本覆盖</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDialog(setCredOpen)}>修改APIKey</DropdownMenuItem>
                 <DropdownMenuItem disabled={!channel} onClick={() => runLifecycle("archive")}>
                   归档
@@ -166,6 +170,7 @@ export function ChannelRowActions({ channelId }: { channelId: number }) {
           <ChannelTestDialog open={testOpen} onOpenChange={setTestOpen} channel={channel} />
           <ChannelModelsDialog open={modelsOpen} onOpenChange={setModelsOpen} channel={channel} />
           <ChannelPricesDialog open={pricesOpen} onOpenChange={setPricesOpen} channel={channel} />
+          <ChannelCostMultiplierDialog open={costMultOpen} onOpenChange={setCostMultOpen} channel={channel} />
           <RotateCredentialDialog open={credOpen} onOpenChange={setCredOpen} channel={channel} />
           <StatusChangeConfirmDialog
             open={statusConfirmOpen}

@@ -1,12 +1,18 @@
-/* eslint-disable react-refresh/only-export-components */
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import { listChannelModels } from "@/lib/api/channelModels";
-import { listChannelPrices, pickCurrentChannelPrice } from "@/lib/api/channelPrices";
+import { listChannelCostMultipliers } from "@/lib/api/channelCostMultipliers";
+import {
+  listChannelRechargeFactors,
+  pickCurrentChannelRechargeFactor,
+} from "@/lib/api/channelRechargeFactors";
+import { listChannelPrices } from "@/lib/api/channelPrices";
+import { listModelPrices } from "@/lib/api/modelPrices";
 import type { ChannelOpsRow } from "@/lib/api/channelsOps";
 import { getChannelOpsRoutes } from "@/lib/api/channelsOps";
+import { resolveChannelIOCost } from "@/lib/billing/resolveChannelCost";
 import {
   ChannelLastTestCell,
   channelLastTestAutoSizeLabel,
@@ -64,9 +70,42 @@ function BoundModelsCell({
     queryFn: () => listChannelPrices(channelId),
     enabled: open,
   });
+  const multipliersQuery = useQuery({
+    queryKey: ["channel-cost-multipliers", channelId],
+    queryFn: () => listChannelCostMultipliers(channelId),
+    enabled: open,
+  });
+  const factorsQuery = useQuery({
+    queryKey: ["channel-recharge-factors", channelId],
+    queryFn: () => listChannelRechargeFactors(channelId),
+    enabled: open,
+  });
+
   const models = modelsQuery.data ?? [];
   const prices = pricesQuery.data ?? [];
-  const loading = modelsQuery.isPending || pricesQuery.isPending;
+  const multipliers = multipliersQuery.data ?? [];
+  const recharge = pickCurrentChannelRechargeFactor(factorsQuery.data ?? []);
+
+  const modelPriceQueries = useQueries({
+    queries: models.map((m) => ({
+      queryKey: ["model-prices", m.model_id],
+      queryFn: () => listModelPrices(m.model_id),
+      enabled: open && models.length > 0,
+    })),
+  });
+
+  const loading =
+    modelsQuery.isPending ||
+    pricesQuery.isPending ||
+    multipliersQuery.isPending ||
+    factorsQuery.isPending ||
+    (models.length > 0 && modelPriceQueries.some((q) => q.isPending));
+  const failed =
+    modelsQuery.isError ||
+    pricesQuery.isError ||
+    multipliersQuery.isError ||
+    factorsQuery.isError ||
+    modelPriceQueries.some((q) => q.isError);
 
   return (
     <HoverCard open={open} onOpenChange={setOpen} openDelay={120} closeDelay={80}>
@@ -80,10 +119,10 @@ function BoundModelsCell({
           {formatInt(boundModels)}
         </span>
       </HoverCardTrigger>
-      <HoverCardContent align="start" className="w-80">
+      <HoverCardContent align="start" className="w-96">
         {loading ? (
           <p className="text-muted-foreground text-xs">加载绑定模型…</p>
-        ) : modelsQuery.isError || pricesQuery.isError ? (
+        ) : failed ? (
           <p className="text-destructive text-xs">加载失败</p>
         ) : models.length === 0 ? (
           <p className="text-muted-foreground text-xs">暂无绑定模型</p>
@@ -93,8 +132,14 @@ function BoundModelsCell({
               绑定模型（{models.length}）
             </div>
             <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
-              {models.map((m) => {
-                const activePrice = pickCurrentChannelPrice(prices, m.model_id);
+              {models.map((m, i) => {
+                const cost = resolveChannelIOCost({
+                  modelId: m.model_id,
+                  absolutePrices: prices,
+                  multipliers,
+                  rechargeFactor: recharge?.factor ?? null,
+                  modelPrices: modelPriceQueries[i]?.data ?? [],
+                });
                 return (
                   <li
                     key={m.id}
@@ -115,12 +160,23 @@ function BoundModelsCell({
                         </span>
                       ) : null}
                     </div>
-                    {activePrice ? (
-                      <span className="text-muted-foreground shrink-0 tabular-nums text-xs">
-                        {trimDecimal(activePrice.uncached_input_cost)} /{" "}
-                        {trimDecimal(activePrice.output_cost)}
-                      </span>
-                    ) : null}
+                    <span className="text-muted-foreground flex shrink-0 items-center gap-1 tabular-nums text-xs">
+                      {cost ? (
+                        <>
+                          {trimDecimal(cost.input)} / {trimDecimal(cost.output)}
+                          {cost.source === "override" ? (
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10px] font-normal"
+                            >
+                              覆盖
+                            </Badge>
+                          ) : null}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </span>
                   </li>
                 );
               })}
