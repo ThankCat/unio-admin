@@ -20,12 +20,6 @@ import { cn } from "@/lib/utils";
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
-function latencyClass(ms: number, th: MetricThresholds): string {
-  if (ms > th.latencyDangerMs) return "text-red-600 dark:text-red-400";
-  if (ms >= th.latencyWarnMs) return "text-amber-600 dark:text-amber-400";
-  return "text-foreground";
-}
-
 function ttftClass(ms: number, th: MetricThresholds): string {
   if (ms > th.ttftDangerMs) return "text-red-600 dark:text-red-400";
   if (ms >= th.ttftWarnMs) return "text-amber-600 dark:text-amber-400";
@@ -179,7 +173,7 @@ export function RequestTokensCell({ row }: { row: RequestListItem }) {
   );
 }
 
-/** 耗时：主行总耗时（着色）+ 次行 首字/TPS；悬浮显示明细 + 口径说明。 */
+/** 耗时：主行总耗时 + 次行 首字/TPS；悬浮显示明细 + 口径说明。总耗时不按阈值着色（长输出本身就会很长）。 */
 export function RequestTimingCell({ row }: { row: RequestListItem }) {
   const th = useMetricThresholds();
   if (row.latency_ms == null && row.ttft_ms == null && row.tps == null) return <Dash />;
@@ -189,9 +183,7 @@ export function RequestTimingCell({ row }: { row: RequestListItem }) {
       <HoverCardTrigger asChild>
         <button type="button" className="flex flex-col gap-1 py-0.5 text-left text-xs tabular-nums">
           {row.latency_ms != null ? (
-            <span className={cn("font-medium", latencyClass(row.latency_ms, th))}>
-              {formatLatencyMs(row.latency_ms)}
-            </span>
+            <span className="font-medium">{formatLatencyMs(row.latency_ms)}</span>
           ) : (
             <Dash />
           )}
@@ -238,7 +230,7 @@ export function RequestCostCell({ row }: { row: RequestListItem }) {
           {formatUSDPrecise(row.user_charge_usd)}
         </button>
       </HoverCardTrigger>
-      <TipHoverCardContent align="end" className="w-80">
+      <TipHoverCardContent align="end" className="w-[22rem]">
         <div className="flex flex-col gap-2">
           <div className="text-sm font-medium">费用明细</div>
           <RequestCostBreakdown
@@ -282,6 +274,8 @@ export function RequestCostCell({ row }: { row: RequestListItem }) {
               },
               userCharge: row.user_charge_usd,
               routeRatio: row.route_price_ratio,
+              channelCostMultiplier: row.channel_cost_multiplier,
+              rechargeFactor: row.recharge_factor,
             }}
           />
         </div>

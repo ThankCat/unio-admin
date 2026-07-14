@@ -4,7 +4,7 @@ import type { ListMeta, Page } from "@/lib/api/types";
 import type { BillingException, LedgerEntry } from "@/lib/api/ledger";
 
 // 与后端 requestSummaryDTO 对齐；列表项不含 internal_error_detail（存储层即脱敏）。
-export interface RequestSummary {
+interface RequestSummary {
   id: number;
   request_id: string;
   user_id: number;
@@ -64,6 +64,9 @@ export interface RequestListItem extends RequestSummary {
   cache_write_30m_input_price_unit_usd: string | null;
   output_price_unit_usd: string | null;
   reasoning_output_price_unit_usd: string | null;
+  // DEC-027 成本来源倍率快照（倍率路径有值，覆盖/旧数据为 null）：价格倍率 + 充值倍率。
+  channel_cost_multiplier: string | null;
+  recharge_factor: string | null;
   // 用户/Key：明文供列表点击复制（口径同 api-keys 页）。
   api_key_name: string | null;
   api_key_prefix: string | null;
@@ -85,7 +88,7 @@ export interface RequestListItem extends RequestSummary {
 }
 
 // 与后端 costSnapshotDTO 对齐：平台成本快照（单价 per_1m_tokens + 金额，USD 字符串）。
-export interface CostSnapshot {
+interface CostSnapshot {
   uncached_input_cost_unit: string | null;
   cache_read_input_cost_unit: string | null;
   cache_write_5m_input_cost_unit: string | null;
@@ -101,10 +104,13 @@ export interface CostSnapshot {
   output_cost_amount: string | null;
   reasoning_output_cost_amount: string | null;
   total_cost_amount: string | null;
+  // DEC-027 成本来源倍率（倍率路径有值，覆盖/旧数据为 null）：价格倍率 + 充值倍率。
+  channel_cost_multiplier: string | null;
+  recharge_factor: string | null;
 }
 
 // 与后端 priceSnapshotDTO 对齐：客户售价快照（单价 per_1m_tokens，USD 字符串）。
-export interface PriceSnapshot {
+interface PriceSnapshot {
   uncached_input_price: string | null;
   cache_read_input_price: string | null;
   cache_write_5m_input_price: string | null;
@@ -143,7 +149,7 @@ export interface Attempt {
 }
 
 // 与后端 usageDTO 对齐（请求详情内）。
-export interface RequestUsage {
+interface RequestUsage {
   id: number;
   request_record_id: number;
   uncached_input_tokens: number;

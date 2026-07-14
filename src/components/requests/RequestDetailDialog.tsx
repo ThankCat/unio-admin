@@ -355,6 +355,8 @@ function CostSection({ detail }: { detail: RequestDetail }) {
             : null,
           userCharge,
           routeRatio: detail.route_price_ratio,
+          channelCostMultiplier: cs?.channel_cost_multiplier ?? null,
+          rechargeFactor: cs?.recharge_factor ?? null,
         }}
       />
     </Section>
