@@ -9,6 +9,9 @@ import { AuthProvider } from "@/lib/auth/AuthContext.tsx";
 import { ThemeProvider } from "@/components/theme/ThemeProvider.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
 import { Toaster } from "@/components/ui/sonner.tsx";
+import { installScrollVisibility } from "@/lib/scroll-visibility";
+
+installScrollVisibility();
 
 const queryClient = new QueryClient({
   defaultOptions: {

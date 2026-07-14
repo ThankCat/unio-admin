@@ -131,62 +131,75 @@
 
 @utility table-scroll-x {
   overflow-x: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent)
-    color-mix(in oklch, var(--muted) 80%, transparent);
-
-  &::-webkit-scrollbar {
-    height: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: color-mix(in oklch, var(--muted) 80%, transparent);
-    border-radius: 9999px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
-    border-radius: 9999px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in oklch, var(--muted-foreground) 65%, transparent);
-  }
 }
 
 @utility tip-scroll {
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent)
-    transparent;
+}
+
+/* 兼容旧用法：语义等同于 overflow-y-auto，滚动条由全局规则控制。 */
+@utility scroll-show-on-scroll {
+  overflow-y: auto;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none !important;
 
   &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
-    border-radius: 9999px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
   }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
+
   body {
     @apply bg-background text-foreground;
-    }
+  }
+
   html {
     @apply font-sans;
-    }
+  }
+
+  /*
+   * 原生滚动条：尺寸恒定，只切换 thumb 颜色，避免 width none↔thin 造成布局抖动。
+   * 默认 thumb 全透明（视觉隐藏）；滚动时由 scroll-visibility.ts 加 .is-scrolling 显现。
+   * 系统 overlay 滚动条本身不占布局；.no-scrollbar 永久隐藏。
+   */
+  *:not(.no-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  *:not(.no-scrollbar)::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+
+  *:not(.no-scrollbar)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *:not(.no-scrollbar)::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 9999px;
+  }
+
+  *.is-scrolling:not(.no-scrollbar) {
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent)
+      transparent;
+  }
+
+  *.is-scrolling:not(.no-scrollbar)::-webkit-scrollbar-thumb {
+    background-color: color-mix(
+      in oklch,
+      var(--muted-foreground) 40%,
+      transparent
+    );
+  }
 }

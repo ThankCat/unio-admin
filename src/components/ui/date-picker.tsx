@@ -298,7 +298,7 @@ function TimeColumn({
   activeRef: Ref<HTMLButtonElement>;
 }) {
   return (
-    <div className="h-[15rem] w-14 overflow-y-auto p-1 [scrollbar-width:thin]">
+    <div className="h-[15rem] w-14 overflow-y-auto p-1">
       <div className="flex flex-col gap-0.5">
         {values.map((v) => {
           const active = selected === v;
