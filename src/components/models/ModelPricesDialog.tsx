@@ -1,11 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeftIcon, CheckIcon, PlusIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  PlusIcon,
+} from "lucide-react";
 import {
   createModelPrice,
   listModelPrices,
@@ -30,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -51,16 +57,40 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MONEY_PATTERN = /^\d+(\.\d+)?$/;
+const MULTIPLIER_PATTERN = /^\d+(\.\d+)?$/;
+
+/** OpenAI GPT-5.4+ / sub2api 官方长上下文阶梯默认值。 */
+const DEFAULT_LONG_CONTEXT = {
+  threshold: "272000",
+  inputMultiplier: "2",
+  outputMultiplier: "1.5",
+} as const;
 
 // 基准售价分项：六个分项，前两个（未缓存输入/输出）必填。
+// 缓存写入按 TTL 分档（DEC-030）：5m/1h 为 Anthropic，30m 为 OpenAI GPT-5.6+。
 const PRICE_FIELDS = [
   { key: "uncached_input", label: "未缓存输入", required: true },
   { key: "output", label: "输出", required: true },
   { key: "cache_read_input", label: "缓存读取输入", required: false },
   { key: "reasoning_output", label: "reasoning 输出", required: false },
-  { key: "cache_write_5m_input", label: "5 分钟缓存写入", required: false },
-  { key: "cache_write_1h_input", label: "1 小时缓存写入", required: false },
-  { key: "cache_write_30m_input", label: "30 分钟缓存写入", required: false },
+  {
+    key: "cache_write_5m_input",
+    label: "5 分钟缓存写入",
+    required: false,
+    vendor: "Anthropic",
+  },
+  {
+    key: "cache_write_1h_input",
+    label: "1 小时缓存写入",
+    required: false,
+    vendor: "Anthropic",
+  },
+  {
+    key: "cache_write_30m_input",
+    label: "30 分钟缓存写入",
+    required: false,
+    vendor: "OpenAI",
+  },
 ] as const;
 
 type PriceFieldKey = (typeof PRICE_FIELDS)[number]["key"];
@@ -76,7 +106,7 @@ export function ModelPricesDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         {open && <ModelPriceManager model={model} />}
       </DialogContent>
     </Dialog>
@@ -103,8 +133,8 @@ function ModelPriceManager({ model }: { model: Model }) {
 
   if (mode === "create") {
     return (
-      <>
-        <DialogHeader>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 px-4 pt-4 pr-12">
           <DialogTitle>新建模型基准售价</DialogTitle>
           <DialogDescription>
             为「{model.display_name}」配置基准售价（按每百万 token 计）。客户最终售价 = 基准价 × 线路倍率。
@@ -120,51 +150,49 @@ function ModelPriceManager({ model }: { model: Model }) {
             setMode("list");
           }}
         />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <DialogHeader>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 pr-12">
+      <DialogHeader className="shrink-0">
         <DialogTitle>模型基准售价</DialogTitle>
         <DialogDescription>
           「{model.display_name}」的基准售价（含历史与停用）。价格不可删，改价请新建一条并关闭旧窗口。
         </DialogDescription>
       </DialogHeader>
 
-      <div className="flex flex-col gap-4">
-        <div>
-          <Button size="sm" onClick={() => setMode("create")}>
-            <PlusIcon data-icon="inline-start" />
-            新建基准售价
-          </Button>
-        </div>
-
-        {pricesQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>加载失败</AlertTitle>
-            <AlertDescription>{pricesQuery.error.message}</AlertDescription>
-          </Alert>
-        ) : pricesQuery.isPending ? (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        ) : prices.length === 0 ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            还没有配置基准售价
-          </p>
-        ) : (
-          <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto rounded-md border">
-            {prices.map((p) => (
-              <ModelPriceRow key={p.id} price={p} onChanged={invalidate} />
-            ))}
-          </ul>
-        )}
+      <div className="shrink-0">
+        <Button size="sm" onClick={() => setMode("create")}>
+          <PlusIcon data-icon="inline-start" />
+          新建基准售价
+        </Button>
       </div>
-    </>
+
+      {pricesQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>加载失败</AlertTitle>
+          <AlertDescription>{pricesQuery.error.message}</AlertDescription>
+        </Alert>
+      ) : pricesQuery.isPending ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : prices.length === 0 ? (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          还没有配置基准售价
+        </p>
+      ) : (
+        <ul className="divide-border min-h-0 flex-1 divide-y overflow-y-auto rounded-md border">
+          {prices.map((p) => (
+            <ModelPriceRow key={p.id} price={p} onChanged={invalidate} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -186,10 +214,20 @@ function ModelPriceForm({
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
   const [status, setStatus] = useState("enabled");
+  const [longContextEnabled, setLongContextEnabled] = useState(false);
+  const [longContextThreshold, setLongContextThreshold] = useState(
+    DEFAULT_LONG_CONTEXT.threshold,
+  );
+  const [longContextInputMultiplier, setLongContextInputMultiplier] = useState(
+    DEFAULT_LONG_CONTEXT.inputMultiplier,
+  );
+  const [longContextOutputMultiplier, setLongContextOutputMultiplier] = useState(
+    DEFAULT_LONG_CONTEXT.outputMultiplier,
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (vars: { effectiveFrom: string; effectiveTo: string | null }) =>
       createModelPrice({
         modelId,
         currency: currency.trim(),
@@ -201,9 +239,19 @@ function ModelPriceForm({
         cache_write_5m_input_price: optionalMoney(price.cache_write_5m_input),
         cache_write_1h_input_price: optionalMoney(price.cache_write_1h_input),
         cache_write_30m_input_price: optionalMoney(price.cache_write_30m_input),
+        long_context_enabled: longContextEnabled,
+        long_context_threshold: longContextEnabled
+          ? Number(longContextThreshold.trim())
+          : optionalInt(longContextThreshold),
+        long_context_input_multiplier: longContextEnabled
+          ? longContextInputMultiplier.trim()
+          : optionalMoney(longContextInputMultiplier),
+        long_context_output_multiplier: longContextEnabled
+          ? longContextOutputMultiplier.trim()
+          : optionalMoney(longContextOutputMultiplier),
         status,
-        effective_from: localToRFC3339(effectiveFrom),
-        effective_to: effectiveTo.trim() ? localToRFC3339(effectiveTo) : null,
+        effective_from: vars.effectiveFrom,
+        effective_to: vars.effectiveTo,
       }),
     onSuccess: () => {
       toast.success("已新增模型基准售价");
@@ -225,13 +273,31 @@ function ModelPriceForm({
       }
     }
 
-    if (effectiveFrom.trim() === "") next.effective_from = "请选择生效开始时间";
-    if (
-      effectiveTo.trim() !== "" &&
-      effectiveFrom.trim() !== "" &&
-      new Date(effectiveTo) <= new Date(effectiveFrom)
-    ) {
-      next.effective_to = "结束时间须晚于开始时间";
+    if (longContextEnabled) {
+      const thr = longContextThreshold.trim();
+      if (thr === "" || !/^\d+$/.test(thr) || Number(thr) <= 0) {
+        next.long_context_threshold = "须为正整数";
+      }
+      const inMult = longContextInputMultiplier.trim();
+      if (inMult === "" || !MULTIPLIER_PATTERN.test(inMult) || Number(inMult) <= 0) {
+        next.long_context_input_multiplier = "须为正数";
+      }
+      const outMult = longContextOutputMultiplier.trim();
+      if (outMult === "" || !MULTIPLIER_PATTERN.test(outMult) || Number(outMult) <= 0) {
+        next.long_context_output_multiplier = "须为正数";
+      }
+    }
+
+    // 生效开始留空即默认取创建时间；仅当填了结束时间时校验须晚于开始（留空时以「现在」为准）。
+    if (effectiveTo.trim() !== "") {
+      const fromForCheck = effectiveFrom.trim()
+        ? new Date(effectiveFrom)
+        : new Date();
+      if (new Date(effectiveTo) <= fromForCheck) {
+        next.effective_to = effectiveFrom.trim()
+          ? "结束时间须晚于开始时间"
+          : "结束时间须晚于当前时间";
+      }
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -240,7 +306,12 @@ function ModelPriceForm({
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-    mutation.mutate();
+    // 开始时间留空 → 默认取当前时间（创建即生效），省去每次手动选。
+    const from = effectiveFrom.trim()
+      ? localToRFC3339(effectiveFrom)
+      : new Date().toISOString();
+    const to = effectiveTo.trim() ? localToRFC3339(effectiveTo) : null;
+    mutation.mutate({ effectiveFrom: from, effectiveTo: to });
   }
 
   const hasReference = !!(referenceInput || referenceOutput);
@@ -252,104 +323,145 @@ function ModelPriceForm({
     }));
   }
 
+  // 校验失败时若长上下文字段有错，自动展开折叠区。
+  const longContextHasError =
+    !!errors.long_context_threshold ||
+    !!errors.long_context_input_multiplier ||
+    !!errors.long_context_output_multiplier;
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Field data-invalid={!!errors.currency}>
-        <HintLabel htmlFor="mp_currency" hint="基准价计价币种（如 USD）；计价单位为每百万 token。">
-          币种
-        </HintLabel>
-        <Input
-          id="mp_currency"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-          placeholder="USD"
-          aria-invalid={!!errors.currency}
-          className="max-w-40"
+    <form
+      onSubmit={handleSubmit}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
+        <Field data-invalid={!!errors.currency}>
+          <HintLabel htmlFor="mp_currency" hint="基准价计价币种（如 USD）；计价单位为每百万 token。">
+            币种
+          </HintLabel>
+          <Input
+            id="mp_currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            placeholder="USD"
+            aria-invalid={!!errors.currency}
+            className="max-w-40"
+          />
+          <FieldError>{errors.currency}</FieldError>
+        </Field>
+
+        {hasReference ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+            <span className="text-muted-foreground">
+              采纳参考价（每百万 token）：输入 {referenceInput || "—"} / 输出{" "}
+              {referenceOutput || "—"}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto h-7"
+              onClick={fillReference}
+            >
+              填入未缓存输入 / 输出
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="overflow-hidden rounded-md border">
+          <div className="bg-muted/40 text-muted-foreground grid grid-cols-[1.4fr_1fr] gap-2 px-3 py-1.5 text-xs font-medium">
+            <div>分项</div>
+            <div>基准价</div>
+          </div>
+          {PRICE_FIELDS.map((f) => (
+            <PriceRow
+              key={f.key}
+              label={f.label}
+              required={f.required}
+              vendor={"vendor" in f ? f.vendor : undefined}
+              price={price[f.key]}
+              priceError={errors[`price_${f.key}`]}
+              onPrice={(v) => setPrice((s) => ({ ...s, [f.key]: v }))}
+            />
+          ))}
+        </div>
+
+        <LongContextSection
+          enabled={longContextEnabled}
+          onEnabledChange={(next) => {
+            setLongContextEnabled(next);
+            if (next) {
+              if (!longContextThreshold.trim()) {
+                setLongContextThreshold(DEFAULT_LONG_CONTEXT.threshold);
+              }
+              if (!longContextInputMultiplier.trim()) {
+                setLongContextInputMultiplier(DEFAULT_LONG_CONTEXT.inputMultiplier);
+              }
+              if (!longContextOutputMultiplier.trim()) {
+                setLongContextOutputMultiplier(DEFAULT_LONG_CONTEXT.outputMultiplier);
+              }
+            }
+          }}
+          threshold={longContextThreshold}
+          onThresholdChange={setLongContextThreshold}
+          inputMultiplier={longContextInputMultiplier}
+          onInputMultiplierChange={setLongContextInputMultiplier}
+          outputMultiplier={longContextOutputMultiplier}
+          onOutputMultiplierChange={setLongContextOutputMultiplier}
+          errors={errors}
+          forceOpen={longContextHasError}
         />
-        <FieldError>{errors.currency}</FieldError>
-      </Field>
 
-      {hasReference ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
-          <span className="text-muted-foreground">
-            采纳参考价（每百万 token）：输入 {referenceInput || "—"} / 输出{" "}
-            {referenceOutput || "—"}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="ml-auto h-7"
-            onClick={fillReference}
-          >
-            填入未缓存输入 / 输出
-          </Button>
+        <div className="grid grid-cols-2 gap-4">
+          <Field data-invalid={!!errors.effective_from}>
+            <HintLabel
+              htmlFor="mp_from"
+              hint="该基准价开始生效的时间点；留空默认取创建时间（立即生效）。"
+            >
+              生效开始（可选）
+            </HintLabel>
+            <DateTimePicker
+              id="mp_from"
+              value={effectiveFrom}
+              onChange={setEffectiveFrom}
+              placeholder="留空默认创建时间"
+              aria-invalid={!!errors.effective_from}
+            />
+            <FieldError>{errors.effective_from}</FieldError>
+          </Field>
+
+          <Field data-invalid={!!errors.effective_to}>
+            <HintLabel htmlFor="mp_to" hint="该基准价的失效时间；留空表示长期有效。">
+              生效结束（可选）
+            </HintLabel>
+            <DateTimePicker
+              id="mp_to"
+              value={effectiveTo}
+              onChange={setEffectiveTo}
+              placeholder="留空表示长期有效"
+              aria-invalid={!!errors.effective_to}
+            />
+            <FieldError>{errors.effective_to}</FieldError>
+          </Field>
         </div>
-      ) : null}
 
-      {/* 基准售价：每个分项一栏（前两项必填）。 */}
-      <div className="overflow-hidden rounded-md border">
-        <div className="bg-muted/40 text-muted-foreground grid grid-cols-[1.4fr_1fr] gap-2 px-3 py-2 text-xs font-medium">
-          <div>分项</div>
-          <div>基准价</div>
-        </div>
-        {PRICE_FIELDS.map((f) => (
-          <PriceRow
-            key={f.key}
-            label={f.label}
-            required={f.required}
-            price={price[f.key]}
-            priceError={errors[`price_${f.key}`]}
-            onPrice={(v) => setPrice((s) => ({ ...s, [f.key]: v }))}
-          />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <Field data-invalid={!!errors.effective_from}>
-          <HintLabel htmlFor="mp_from" hint="该基准价开始生效的时间点。">
-            生效开始
+        <Field>
+          <HintLabel htmlFor="mp_status" hint="启用后在其生效区间内参与计费；停用则不参与。">
+            状态
           </HintLabel>
-          <DateTimePicker
-            id="mp_from"
-            value={effectiveFrom}
-            onChange={setEffectiveFrom}
-            aria-invalid={!!errors.effective_from}
-          />
-          <FieldError>{errors.effective_from}</FieldError>
-        </Field>
-
-        <Field data-invalid={!!errors.effective_to}>
-          <HintLabel htmlFor="mp_to" hint="该基准价的失效时间；留空表示长期有效。">
-            生效结束（可选）
-          </HintLabel>
-          <DateTimePicker
-            id="mp_to"
-            value={effectiveTo}
-            onChange={setEffectiveTo}
-            placeholder="留空表示长期有效"
-            aria-invalid={!!errors.effective_to}
-          />
-          <FieldError>{errors.effective_to}</FieldError>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger id="mp_status" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="enabled">启用</SelectItem>
+              <SelectItem value="disabled">停用</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
       </div>
 
-      <Field>
-        <HintLabel htmlFor="mp_status" hint="启用后在其生效区间内参与计费；停用则不参与。">
-          状态
-        </HintLabel>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="mp_status" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="enabled">启用</SelectItem>
-            <SelectItem value="disabled">停用</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <div className="mt-2 flex justify-end gap-2">
+      <div className="bg-muted/50 flex shrink-0 justify-end gap-2 border-t p-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           <ArrowLeftIcon data-icon="inline-start" />
           返回
@@ -366,21 +478,30 @@ function ModelPriceForm({
 function PriceRow({
   label,
   required,
+  vendor,
   price,
   priceError,
   onPrice,
 }: {
   label: string;
   required: boolean;
+  vendor?: "Anthropic" | "OpenAI";
   price: string;
   priceError?: string;
   onPrice: (v: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-[1.4fr_1fr] items-start gap-2 border-t px-3 py-2">
-      <div className="pt-2 text-sm">
-        {label}
-        {required && <span className="text-destructive"> *</span>}
+    <div className="grid grid-cols-[1.4fr_1fr] items-start gap-2 border-t px-3 py-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-sm">
+        <span>
+          {label}
+          {required && <span className="text-destructive"> *</span>}
+        </span>
+        {vendor && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+            {vendor}
+          </Badge>
+        )}
       </div>
       <div>
         <Input
@@ -442,6 +563,18 @@ function ModelPriceRow({
           {formatDateTime(price.effective_from)} ~{" "}
           {price.effective_to ? formatDateTime(price.effective_to) : "长期"}
         </div>
+        {price.long_context_enabled ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge className="h-5 bg-amber-600/90 px-1.5 text-[10px] font-medium text-white hover:bg-amber-600/90">
+              长上下文阶梯
+            </Badge>
+            <span className="text-muted-foreground text-[11px]">
+              &gt;{price.long_context_threshold?.toLocaleString() ?? "—"} tokens · 输入 ×
+              {trimDecimal(price.long_context_input_multiplier ?? "—")} · 输出 ×
+              {trimDecimal(price.long_context_output_multiplier ?? "—")}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-1">
@@ -510,6 +643,175 @@ function ModelPriceRow({
   );
 }
 
+function LongContextSection({
+  enabled,
+  onEnabledChange,
+  threshold,
+  onThresholdChange,
+  inputMultiplier,
+  onInputMultiplierChange,
+  outputMultiplier,
+  onOutputMultiplierChange,
+  errors,
+  forceOpen = false,
+}: {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  threshold: string;
+  onThresholdChange: (v: string) => void;
+  inputMultiplier: string;
+  onInputMultiplierChange: (v: string) => void;
+  outputMultiplier: string;
+  onOutputMultiplierChange: (v: string) => void;
+  errors: Record<string, string>;
+  forceOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
+
+  const summary = enabled
+    ? `已启用 · >${Number(threshold || DEFAULT_LONG_CONTEXT.threshold).toLocaleString()} · 输入 ×${inputMultiplier || DEFAULT_LONG_CONTEXT.inputMultiplier} · 输出 ×${outputMultiplier || DEFAULT_LONG_CONTEXT.outputMultiplier}`
+    : "关闭（按基准价计费）";
+
+  return (
+    <section
+      className={cn(
+        "rounded-lg border p-0 transition-colors",
+        enabled
+          ? "border-amber-500/35 bg-gradient-to-br from-amber-500/[0.07] via-transparent to-orange-500/[0.05]"
+          : "border-dashed bg-muted/20",
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-medium tracking-tight">长上下文阶梯</span>
+            <Badge
+              variant="outline"
+              className="h-5 border-amber-600/30 px-1.5 text-[10px] font-normal text-amber-800 dark:text-amber-200"
+            >
+              GPT-5.4+
+            </Badge>
+            {enabled ? (
+              <Badge className="h-4 bg-amber-600/90 px-1.5 text-[10px] font-medium text-white hover:bg-amber-600/90">
+                已启用
+              </Badge>
+            ) : null}
+          </div>
+          {!open ? (
+            <p className="text-muted-foreground mt-0.5 truncate text-[11px] leading-snug">
+              {summary}
+            </p>
+          ) : null}
+        </div>
+        <ChevronDownIcon
+          className={cn(
+            "text-muted-foreground size-4 shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open ? (
+        <div className="space-y-3 border-t border-amber-500/15 px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-muted-foreground text-[11px] leading-snug">
+              输入合计超阈值时，整单输入 × 输入倍率、输出 × 输出倍率（售价与成本同步）。
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-muted-foreground text-xs">
+                {enabled ? "已启用" : "关闭"}
+              </span>
+              <Switch
+                checked={enabled}
+                onCheckedChange={onEnabledChange}
+                aria-label="启用长上下文阶梯"
+              />
+            </div>
+          </div>
+
+          {enabled ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field data-invalid={!!errors.long_context_threshold}>
+                <HintLabel
+                  htmlFor="mp_lc_threshold"
+                  hint="输入侧 token 合计超过该值时触发阶梯（严格大于）。OpenAI 官方为 272000。"
+                >
+                  阈值（tokens）
+                </HintLabel>
+                <Input
+                  id="mp_lc_threshold"
+                  value={threshold}
+                  onChange={(e) => onThresholdChange(e.target.value)}
+                  inputMode="numeric"
+                  placeholder={DEFAULT_LONG_CONTEXT.threshold}
+                  aria-invalid={!!errors.long_context_threshold}
+                  className="h-9 font-mono text-sm"
+                />
+                <FieldError>{errors.long_context_threshold}</FieldError>
+              </Field>
+              <Field data-invalid={!!errors.long_context_input_multiplier}>
+                <HintLabel
+                  htmlFor="mp_lc_in"
+                  hint="触发后，所有输入侧分项单价乘以该倍率（含未缓存 / cache read / cache write）。"
+                >
+                  输入倍率
+                </HintLabel>
+                <div className="relative">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs">
+                    ×
+                  </span>
+                  <Input
+                    id="mp_lc_in"
+                    value={inputMultiplier}
+                    onChange={(e) => onInputMultiplierChange(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={DEFAULT_LONG_CONTEXT.inputMultiplier}
+                    aria-invalid={!!errors.long_context_input_multiplier}
+                    className="h-9 pl-6 font-mono text-sm"
+                  />
+                </div>
+                <FieldError>{errors.long_context_input_multiplier}</FieldError>
+              </Field>
+              <Field data-invalid={!!errors.long_context_output_multiplier}>
+                <HintLabel
+                  htmlFor="mp_lc_out"
+                  hint="触发后，输出与 reasoning 输出单价乘以该倍率。"
+                >
+                  输出倍率
+                </HintLabel>
+                <div className="relative">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-xs">
+                    ×
+                  </span>
+                  <Input
+                    id="mp_lc_out"
+                    value={outputMultiplier}
+                    onChange={(e) => onOutputMultiplierChange(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={DEFAULT_LONG_CONTEXT.outputMultiplier}
+                    aria-invalid={!!errors.long_context_output_multiplier}
+                    className="h-9 pl-6 font-mono text-sm"
+                  />
+                </div>
+                <FieldError>{errors.long_context_output_multiplier}</FieldError>
+              </Field>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function emptyAmounts(): Record<PriceFieldKey, string> {
   return {
     uncached_input: "",
@@ -525,4 +827,10 @@ function emptyAmounts(): Record<PriceFieldKey, string> {
 function optionalMoney(raw: string): string | null {
   const s = raw.trim();
   return s === "" ? null : s;
+}
+
+function optionalInt(raw: string): number | null {
+  const s = raw.trim();
+  if (s === "" || !/^\d+$/.test(s)) return null;
+  return Number(s);
 }

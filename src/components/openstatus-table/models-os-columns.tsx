@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef, FilterFn } from "@tanstack/react-table";
@@ -61,9 +60,9 @@ const BASE_PRICE_BREAKDOWN: {
   { key: "base_cache_read_input_price", label: "缓存读取输入" },
   { key: "base_output_price", label: "输出" },
   { key: "base_reasoning_output_price", label: "reasoning 输出" },
-  { key: "base_cache_write_5m_input_price", label: "5 分钟缓存写入" },
-  { key: "base_cache_write_1h_input_price", label: "1 小时缓存写入" },
-  { key: "base_cache_write_30m_input_price", label: "30 分钟缓存写入" },
+  { key: "base_cache_write_5m_input_price", label: "5 分钟缓存写入 · Anthropic" },
+  { key: "base_cache_write_1h_input_price", label: "1 小时缓存写入 · Anthropic" },
+  { key: "base_cache_write_30m_input_price", label: "30 分钟缓存写入 · OpenAI" },
 ];
 
 function BasePriceCell({ row }: { row: ModelOpsRow }) {
@@ -134,6 +133,7 @@ function ModelBindingsTip({
     channel_name: string;
     channel_status: string;
     upstream_model: string;
+    has_price: boolean;
     input_cost: string | null;
     output_cost: string | null;
   }>;
@@ -164,10 +164,8 @@ function ModelBindingsTip({
         </div>
         <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
           {channels.map((c) => {
-            const isAvailable =
-              c.channel_status === "enabled" &&
-              c.input_cost != null &&
-              c.output_cost != null;
+            // 可用口径与后端 has_price（DEC-031）对齐：绝对覆盖或基准价×倍率可解析即视为有价。
+            const isAvailable = c.channel_status === "enabled" && c.has_price;
             const showUpstream = c.upstream_model && c.upstream_model !== modelRef;
             return (
               <li
